@@ -1,16 +1,14 @@
 # ShipSwift Skills
 
-Build iOS apps faster with **40+ production-ready SwiftUI recipes** -- right inside your AI coding tool.
+**Install once. Build iOS apps with 40+ production-ready SwiftUI recipes — right inside your AI coding tool.**
 
 ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as **Skills + Plugin** for 30+ AI coding tools.
 
 ## Quick Start
 
-### Claude Code (recommended)
+### Claude Code
 
 ```bash
-# Install the plugin (auto-configures MCP)
-/plugin marketplace add signerlabs/shipswift-skills
 /plugin install shipswift
 ```
 
@@ -24,7 +22,7 @@ npx skills add signerlabs/shipswift-skills
 
 | Platform | Install Command |
 |----------|----------------|
-| **Claude Code** | `/plugin marketplace add signerlabs/shipswift-skills` → `/plugin install shipswift` |
+| **Claude Code** | `/plugin install shipswift` |
 | **OpenAI Codex** | `$skill-installer install shipswift from signerlabs/shipswift-skills` |
 | **Gemini CLI** | `gemini skills install https://github.com/signerlabs/shipswift-skills.git` |
 | **Cursor** | `npx skills add signerlabs/shipswift-skills -a cursor` |
@@ -41,13 +39,13 @@ npx skills add signerlabs/shipswift-skills
 | **add-component** | "add component", "add X view" | Finds the right recipe and integrates it into your project |
 | **explore-recipes** | "explore", "browse", "show recipes" | Lists all available recipes organized by category |
 
-### MCP Server (Auto-Configured)
+### Recipe Server (Auto-Configured)
 
-The plugin automatically connects to the ShipSwift MCP server, giving your AI tool access to:
+The plugin automatically connects to the ShipSwift recipe server, giving your AI tool access to:
 
-- **`listRecipes`** -- Browse all recipes, filter by category
-- **`searchRecipes`** -- Search by keyword across titles, descriptions, and code
-- **`getRecipe`** -- Get complete source code with architecture docs
+- **`listRecipes`** — Browse all recipes, filter by category
+- **`searchRecipes`** — Search by keyword across titles, descriptions, and code
+- **`getRecipe`** — Get complete source code with architecture docs
 
 ## Recipe Catalog
 
@@ -64,7 +62,7 @@ Most recipes are **free** and always available. A few advanced modules require S
 
 - **Pro recipes**: TikTok Event Tracking, StoreKit 2 Subscriptions (more coming)
 - **Price**: $89, one-time payment, lifetime access
-- **Get it**: [shipswift.app/pricing](https://shipswift.app/pricing)
+- **Get it**: [shipswift.app](https://shipswift.app)
 
 After purchasing, set your API key:
 
@@ -73,11 +71,11 @@ After purchasing, set your API key:
 export SHIPSWIFT_API_KEY=sk_live_xxxxx
 ```
 
-Then restart your AI tool. The plugin's MCP configuration automatically picks up the key -- no manual header setup needed.
+Then restart your AI tool. The plugin's recipe server automatically picks up the key — no manual header setup needed.
 
 ## Manual MCP Setup
 
-If you prefer not to use the plugin/skills system, you can configure the MCP server directly:
+Prefer direct configuration? You can set up the MCP server manually instead of using Skills:
 
 **Claude Code:**
 
@@ -124,7 +122,7 @@ signerlabs/shipswift-skills/
 │   └── shipswift/
 │       ├── .claude-plugin/
 │       │   └── plugin.json           # Plugin metadata
-│       ├── .mcp.json                 # Auto-configures MCP server
+│       ├── .mcp.json                 # Auto-configures recipe server
 │       └── skills/
 │           ├── build-feature/SKILL.md
 │           ├── add-component/SKILL.md
@@ -139,8 +137,8 @@ signerlabs/shipswift-skills/
 ## Links
 
 - **Website**: [shipswift.app](https://shipswift.app)
-- **iOS Template Repo**: [github.com/signerlabs/ship-swift-ios](https://github.com/signerlabs/ship-swift-ios)
-- **MCP Server**: `https://api.shipswift.app/mcp`
+- **iOS Template Repo**: [github.com/signerlabs/ShipSwift](https://github.com/signerlabs/ShipSwift)
+- **Recipe Server**: `https://api.shipswift.app/mcp`
 
 ## License
 
