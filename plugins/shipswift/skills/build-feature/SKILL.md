@@ -11,13 +11,22 @@ Build production-ready iOS features by combining ShipSwift recipes -- copy-paste
 
 ## Prerequisites Check
 
-Before starting, verify the ShipSwift MCP server is available by calling `listRecipes`.
+Before starting, verify the ShipSwift recipe server is available by calling `listRecipes`.
 
-If the MCP server is not configured, instruct the user to install it:
+If the recipe tools are not available, help the user set up:
 
-- **Claude Code**: `/plugin marketplace add signerlabs/shipswift-skills` then `/plugin install shipswift`
-- **Other AI tools**: `npx skills add signerlabs/shipswift-skills`
-- **Manual MCP setup**: `claude mcp add --transport http shipswift https://api.shipswift.app/mcp`
+1. **Install Skills:**
+   ```bash
+   npx skills add signerlabs/shipswift-skills
+   ```
+
+2. **Connect the recipe server** — the AI tool needs MCP access to fetch recipes:
+   - **Claude Code**: `claude mcp add --transport http shipswift https://api.shipswift.app/mcp`
+   - **Cursor** — add to `.cursor/mcp.json`: `{"mcpServers":{"shipswift":{"type":"streamableHttp","url":"https://api.shipswift.app/mcp"}}}`
+   - **VS Code Copilot** — add to `.vscode/mcp.json`: `{"servers":{"shipswift":{"type":"http","url":"https://api.shipswift.app/mcp"}}}`
+   - **Other tools**: See [shipswift.app](https://shipswift.app) for setup guides
+
+3. Restart the AI tool, then try again.
 
 ## Workflow
 

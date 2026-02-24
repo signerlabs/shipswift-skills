@@ -2,32 +2,80 @@
 
 **Install once. Build iOS apps with 40+ production-ready SwiftUI recipes — right inside your AI coding tool.**
 
-ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as **Skills + Plugin** for 30+ AI coding tools.
+ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as **Skills** for 30+ AI coding tools.
 
 ## Quick Start
 
-### Claude Code
-
-```bash
-/plugin install shipswift
-```
-
-### Universal (works with any AI tool)
+### Step 1: Install Skills
 
 ```bash
 npx skills add signerlabs/shipswift-skills
 ```
 
-### Platform-Specific
+One command. Works with Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini, and 30+ more AI tools.
 
-| Platform | Install Command |
-|----------|----------------|
-| **Claude Code** | `/plugin install shipswift` |
-| **OpenAI Codex** | `$skill-installer install shipswift from signerlabs/shipswift-skills` |
-| **Gemini CLI** | `gemini skills install https://github.com/signerlabs/shipswift-skills.git` |
-| **Cursor** | `npx skills add signerlabs/shipswift-skills -a cursor` |
-| **VS Code Copilot** | `npx skills add signerlabs/shipswift-skills -a github-copilot` |
-| **Windsurf** | `npx skills add signerlabs/shipswift-skills -a windsurf` |
+### Step 2: Connect the Recipe Server
+
+Your AI tool needs MCP access to fetch ShipSwift recipes. Set it up for your tool:
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http shipswift https://api.shipswift.app/mcp
+```
+
+**Gemini CLI:**
+
+```bash
+gemini mcp add --transport http shipswift https://api.shipswift.app/mcp
+```
+
+**Cursor** — add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "shipswift": {
+      "type": "streamableHttp",
+      "url": "https://api.shipswift.app/mcp"
+    }
+  }
+}
+```
+
+**VS Code Copilot** — add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "shipswift": {
+      "type": "http",
+      "url": "https://api.shipswift.app/mcp"
+    }
+  }
+}
+```
+
+**Windsurf** — add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "shipswift": {
+      "serverUrl": "https://api.shipswift.app/mcp"
+    }
+  }
+}
+```
+
+Restart your AI tool after adding the server.
+
+### Step 3: Start Building
+
+Just ask your AI:
+- "Add a shimmer loading animation"
+- "Build an authentication flow with Cognito"
+- "Show me all chart components"
 
 ## What You Get
 
@@ -39,9 +87,9 @@ npx skills add signerlabs/shipswift-skills
 | **add-component** | "add component", "add X view" | Finds the right recipe and integrates it into your project |
 | **explore-recipes** | "explore", "browse", "show recipes" | Lists all available recipes organized by category |
 
-### Recipe Server (Auto-Configured)
+### Recipe Server (MCP)
 
-The plugin automatically connects to the ShipSwift recipe server, giving your AI tool access to:
+Once connected, your AI tool has access to:
 
 - **`listRecipes`** — Browse all recipes, filter by category
 - **`searchRecipes`** — Search by keyword across titles, descriptions, and code
@@ -71,66 +119,23 @@ After purchasing, set your API key:
 export SHIPSWIFT_API_KEY=sk_live_xxxxx
 ```
 
-Then restart your AI tool. The plugin's recipe server automatically picks up the key — no manual header setup needed.
-
-## Manual MCP Setup
-
-Prefer direct configuration? You can set up the MCP server manually instead of using Skills:
-
-**Claude Code:**
-
-```bash
-claude mcp add --transport http shipswift https://api.shipswift.app/mcp
-```
-
-**Cursor / VS Code / Other (mcp.json):**
-
-```json
-{
-  "mcpServers": {
-    "shipswift": {
-      "type": "http",
-      "url": "https://api.shipswift.app/mcp"
-    }
-  }
-}
-```
-
-**With Pro API key:**
-
-```json
-{
-  "mcpServers": {
-    "shipswift": {
-      "type": "http",
-      "url": "https://api.shipswift.app/mcp",
-      "headers": {
-        "Authorization": "Bearer sk_live_xxxxx"
-      }
-    }
-  }
-}
-```
+Then restart your AI tool. The recipe server automatically picks up the key.
 
 ## Repository Structure
 
 ```
 signerlabs/shipswift-skills/
-├── .claude-plugin/
-│   └── marketplace.json              # Claude Code Marketplace entry
+├── skills/                           # Cross-platform Skills (npx skills add)
+│   ├── build-feature/SKILL.md
+│   ├── add-component/SKILL.md
+│   └── explore-recipes/SKILL.md
 ├── plugins/
 │   └── shipswift/
-│       ├── .claude-plugin/
-│       │   └── plugin.json           # Plugin metadata
-│       ├── .mcp.json                 # Auto-configures recipe server
+│       ├── .mcp.json                 # Auto-configures recipe server (Claude Code Plugin)
 │       └── skills/
 │           ├── build-feature/SKILL.md
 │           ├── add-component/SKILL.md
 │           └── explore-recipes/SKILL.md
-├── skills/                           # Cross-platform standard (npx skills add)
-│   ├── build-feature/SKILL.md
-│   ├── add-component/SKILL.md
-│   └── explore-recipes/SKILL.md
 └── README.md
 ```
 
