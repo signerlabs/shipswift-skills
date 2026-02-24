@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shipswift": {
+      "type": "http",
+      "url": "https://api.shipswift.app/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SHIPSWIFT_API_KEY}"
+      }
+    }
+  }
+}
