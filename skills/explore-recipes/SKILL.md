@@ -1,9 +1,6 @@
 ---
 name: explore-recipes
-description: >
-  Explore and browse available ShipSwift recipes. Use when the user says "explore",
-  "browse", "show recipes", "list components", "what's available", or wants to discover
-  what ShipSwift offers.
+description: Explore and browse available ShipSwift recipes. Use when the user says explore, browse, show recipes, list components, what's available, or wants to discover what ShipSwift offers.
 ---
 
 # Explore ShipSwift Recipes
