@@ -1,6 +1,6 @@
 # ShipSwift Skills
 
-**Install once. Build iOS apps with 40+ production-ready SwiftUI recipes — right inside your AI coding tool.**
+**Install once. Build iOS apps with production-ready SwiftUI recipes — right inside your AI coding tool.**
 
 ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as **Skills** for 30+ AI coding tools.
 
@@ -16,66 +16,31 @@ One command. Works with Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini, a
 
 ### Step 2: Connect the Recipe Server
 
-Your AI tool needs MCP access to fetch ShipSwift recipes. Set it up for your tool:
+Your AI tool needs MCP access to fetch ShipSwift recipes. Pick your tool and run one command:
 
-**Claude Code:**
+**Claude Code** (recommended — zero config):
 
 ```bash
 claude mcp add --transport http shipswift https://api.shipswift.app/mcp
 ```
 
-**Gemini CLI:**
+**Other tools:**
 
-```bash
-gemini mcp add --transport http shipswift https://api.shipswift.app/mcp
-```
-
-**Cursor** — add to `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "shipswift": {
-      "type": "streamableHttp",
-      "url": "https://api.shipswift.app/mcp"
-    }
-  }
-}
-```
-
-**VS Code Copilot** — add to `.vscode/mcp.json`:
-
-```json
-{
-  "servers": {
-    "shipswift": {
-      "type": "http",
-      "url": "https://api.shipswift.app/mcp"
-    }
-  }
-}
-```
-
-**Windsurf** — add to `~/.codeium/windsurf/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "shipswift": {
-      "serverUrl": "https://api.shipswift.app/mcp"
-    }
-  }
-}
-```
+| Tool | Setup |
+|------|-------|
+| **Gemini CLI** | `gemini mcp add --transport http shipswift https://api.shipswift.app/mcp` |
+| **Cursor** | Add `{"mcpServers":{"shipswift":{"type":"streamableHttp","url":"https://api.shipswift.app/mcp"}}}` to `.cursor/mcp.json` |
+| **VS Code Copilot** | Add `{"servers":{"shipswift":{"type":"http","url":"https://api.shipswift.app/mcp"}}}` to `.vscode/mcp.json` |
+| **Windsurf** | Add `{"mcpServers":{"shipswift":{"serverUrl":"https://api.shipswift.app/mcp"}}}` to `~/.codeium/windsurf/mcp_config.json` |
 
 Restart your AI tool after adding the server.
 
 ### Step 3: Start Building
 
-Just ask your AI:
-- "Add a shimmer loading animation"
-- "Build an authentication flow with Cognito"
-- "Show me all chart components"
+Try saying:
+- `explore recipes` — browse the full catalog
+- `show me animation components` — filter by category
+- `build an onboarding flow` — generate a complete feature
 
 ## What You Get
 
@@ -97,12 +62,12 @@ Once connected, your AI tool has access to:
 
 ## Recipe Catalog
 
-| Category | Count | Examples |
-|----------|-------|---------|
-| **Animation** | 10 | Shimmer, Typewriter, Glow Scan, Mesh Gradient, Orbit, Before/After |
-| **Chart** | 8 | Line, Bar, Area, Donut, Ring, Radar, Scatter, Heatmap |
-| **Component** | 14 | Label, Alert, Loading, Stepper, Onboarding, Tab Button |
-| **Module** | 8 | Auth (Cognito), Camera, Chat, Settings, Subscriptions, Infrastructure |
+| Category | Examples |
+|----------|---------|
+| **Animation** | Shimmer, Typewriter, Glow Scan, Mesh Gradient, Orbit, Before/After |
+| **Chart** | Line, Bar, Area, Donut, Ring, Radar, Scatter, Heatmap |
+| **Component** | Label, Alert, Loading, Stepper, Onboarding, Tab Button |
+| **Module** | Auth (Cognito), Camera, Chat, Settings, Subscriptions, Infrastructure |
 
 ## ShipSwift Pro
 

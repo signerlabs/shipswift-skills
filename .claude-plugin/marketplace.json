@@ -3,7 +3,7 @@
   "plugins": [
     {
       "name": "shipswift",
-      "description": "Build iOS apps faster with 40+ production-ready SwiftUI recipes. Covers animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat).",
+      "description": "Build iOS apps faster with production-ready SwiftUI recipes. Covers animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat).",
       "path": "plugins/shipswift"
     }
   ]

@@ -8,26 +8,13 @@ description: >
 
 # Explore ShipSwift Recipes
 
-Browse the full catalog of ShipSwift recipes -- 40+ production-ready SwiftUI implementations covering animations, charts, UI components, and full-stack modules.
+Browse the full catalog of ShipSwift recipes -- production-ready SwiftUI implementations covering animations, charts, UI components, and full-stack modules.
 
 ## Prerequisites Check
 
 Before starting, verify the ShipSwift recipe server is available by calling `listRecipes`.
 
-If the recipe tools are not available, help the user set up:
-
-1. **Install Skills:**
-   ```bash
-   npx skills add signerlabs/shipswift-skills
-   ```
-
-2. **Connect the recipe server** — the AI tool needs MCP access to fetch recipes:
-   - **Claude Code**: `claude mcp add --transport http shipswift https://api.shipswift.app/mcp`
-   - **Cursor** — add to `.cursor/mcp.json`: `{"mcpServers":{"shipswift":{"type":"streamableHttp","url":"https://api.shipswift.app/mcp"}}}`
-   - **VS Code Copilot** — add to `.vscode/mcp.json`: `{"servers":{"shipswift":{"type":"http","url":"https://api.shipswift.app/mcp"}}}`
-   - **Other tools**: See [shipswift.app](https://shipswift.app) for setup guides
-
-3. Restart the AI tool, then try again.
+If the tools are not available, guide the user to visit [shipswift.app](https://shipswift.app) for setup instructions, or run `npx skills add signerlabs/shipswift-skills` to install.
 
 ## Workflow
 
@@ -62,15 +49,4 @@ If the recipe tools are not available, help the user set up:
 
 ## Pro Recipes
 
-Some recipes require ShipSwift Pro. When browsing, clearly mark Pro recipes and explain:
-
-- **Free recipes** (38): Full source code, always available.
-- **Pro recipes** (2+): Preview available (title, description, architecture). Full code requires ShipSwift Pro.
-- **Get Pro**: Lifetime access to all Pro recipes at [shipswift.app/pricing](https://shipswift.app/pricing) ($89, one-time payment).
-
-If the user already has a Pro key, guide them to set the `SHIPSWIFT_API_KEY` environment variable:
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-export SHIPSWIFT_API_KEY=sk_live_xxxxx
-```
-Then restart their AI tool for the key to take effect.
+Some recipes require a Pro license ($89 one-time). If a recipe returns a purchase prompt, the user can buy at [shipswift.app/pricing](https://shipswift.app/pricing) and set `SHIPSWIFT_API_KEY` in their environment.
