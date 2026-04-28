@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/signerlabs-shipswift-skills-badge.png)](https://mseep.ai/app/signerlabs-shipswift-skills)
+
 # ShipSwift Skills
 
 **Install once. Build iOS apps with production-ready SwiftUI recipes — right inside your AI coding tool.**
