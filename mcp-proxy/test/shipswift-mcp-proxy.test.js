@@ -149,13 +149,12 @@ test('handleRpc: notification (no id) returns 202 empty body', async () => {
 // Spins up a local HTTP server that mimics upstream, then calls handleRpc.
 // ---------------------------------------------------------------------------
 
-test('handleRpc integration: prompts/get with empty args → upstream sees filled args', async (t) => {
-  if (!process.env.SHIPSWIFT_PROXY_LIVE) {
-    t.skip('set SHIPSWIFT_PROXY_LIVE=1 to run live upstream integration');
-    return;
-  }
+test('handleRpc integration: prompts/get with empty args → upstream sees filled args', async () => {
+  // Spawn a mock upstream that records the request body, then spawn the proxy
+  // as a child process pointing at it. Send a real HTTP request to the proxy
+  // and assert the upstream received the filled args.
+  const { spawn } = require('node:child_process');
 
-  // Spin up a mock upstream that captures the request body and replies
   let capturedBody = null;
   const upstream = http.createServer((req, res) => {
     const chunks = [];
@@ -164,47 +163,188 @@ test('handleRpc integration: prompts/get with empty args → upstream sees fille
       capturedBody = Buffer.concat(chunks).toString('utf8');
       res.writeHead(200, {
         'Content-Type': 'application/json',
-        'Mcp-Session-Id': 'test-session',
+        'Mcp-Session-Id': 'mock-session-id',
       });
       res.end(JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
         result: {
-          description: 'ok',
+          description: 'mocked render',
           messages: [{ role: 'user', content: { type: 'text', text: 'rendered' } }],
         },
       }));
     });
   });
   await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
-  const port = upstream.address().port;
-  const upstreamUrl = `http://127.0.0.1:${port}/mcp`;
+  const upstreamPort = upstream.address().port;
+  const upstreamUrl = `http://127.0.0.1:${upstreamPort}/mcp`;
 
-  // Override UPSTREAM via env (handleRpc reads from process.env at import time
-  // via argv, so we need to monkey-patch or use a separate process).
-  // Simpler approach: just test that fillPromptArgs produces the right body
-  // and assert the structure the proxy would forward.
-  const filled = fillPromptArgs('build-feature', {});
-  const forwarded = {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'prompts/get',
-    params: { name: 'build-feature', arguments: filled },
-  };
-  assert.equal(forwarded.params.arguments.platform, 'SwiftUI');
-  assert.ok(forwarded.params.arguments.feature.length > 0);
+  const proxyProc = spawn(
+    process.execPath,
+    [proxyPath, '--port', '0', '--host', '127.0.0.1', '--upstream', upstreamUrl],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
 
-  upstream.close();
+  // Proxy prints the bound port (resolves --port 0 to the actual assigned port)
+  const proxyPort = await new Promise((resolve, reject) => {
+    let buf = '';
+    const onChunk = (chunk) => {
+      buf += chunk.toString();
+      const m = buf.match(/listening on http:\/\/127\.0\.0\.1:(\d+)/);
+      if (m) {
+        proxyProc.stdout.off('data', onChunk);
+        resolve(parseInt(m[1], 10));
+      }
+    };
+    proxyProc.stdout.on('data', onChunk);
+    proxyProc.stderr.on('data', (c) => process.stderr.write(`[proxy] ${c}`));
+    setTimeout(() => reject(new Error('proxy did not start within 5s')), 5000);
+  });
+
+  try {
+    // Send the bug-triggering call (empty args) through the proxy
+    const response = await new Promise((resolve, reject) => {
+      const body = JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'prompts/get',
+        params: { name: 'build-feature', arguments: {} },
+      });
+      const req = http.request({
+        method: 'POST',
+        hostname: '127.0.0.1',
+        port: proxyPort,
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: 10000,
+      }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve({
+          status: res.statusCode,
+          body: Buffer.concat(chunks).toString('utf8'),
+        }));
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+
+    assert.equal(response.status, 200);
+    assert.ok(capturedBody, 'upstream must have received a request');
+
+    const upstreamReq = JSON.parse(capturedBody);
+    assert.equal(upstreamReq.method, 'prompts/get');
+    assert.equal(upstreamReq.params.name, 'build-feature');
+    assert.equal(upstreamReq.params.arguments.platform, 'SwiftUI',
+      'empty args → platform must be filled to SwiftUI');
+    assert.match(upstreamReq.params.arguments.feature, /placeholder/,
+      'empty args → feature must be filled with placeholder');
+  } finally {
+    proxyProc.kill('SIGTERM');
+    await new Promise((r) => proxyProc.on('exit', r));
+    upstream.close();
+  }
 });
 
-test('handleRpc integration: full relay roundtrip via local upstream', async (t) => {
-  if (!process.env.SHIPSWIFT_PROXY_LIVE) {
-    t.skip('set SHIPSWIFT_PROXY_LIVE=1 to run live upstream integration');
-    return;
+test('handleRpc integration: full relay roundtrip via local upstream', async () => {
+  // End-to-end: upstream returns canned response, proxy passes it back to caller
+  // unmodified (modulo JSON-RPC envelope). Verifies the relay chain works.
+  const { spawn } = require('node:child_process');
+
+  const canned = {
+    jsonrpc: '2.0',
+    id: 99,
+    result: {
+      description: 'Round-trip test',
+      messages: [{ role: 'user', content: { type: 'text', text: 'hello from upstream' } }],
+    },
+  };
+
+  const upstream = http.createServer((req, res) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Mcp-Session-Id': 'roundtrip-session',
+      });
+      res.end(JSON.stringify(canned));
+    });
+  });
+  await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+  const upstreamPort = upstream.address().port;
+
+  const proxyProc = spawn(
+    process.execPath,
+    [proxyPath, '--port', '0', '--host', '127.0.0.1',
+     '--upstream', `http://127.0.0.1:${upstreamPort}/mcp`],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+
+  const proxyPort = await new Promise((resolve, reject) => {
+    let buf = '';
+    const onChunk = (chunk) => {
+      buf += chunk.toString();
+      const m = buf.match(/listening on http:\/\/127\.0\.0\.1:(\d+)/);
+      if (m) {
+        proxyProc.stdout.off('data', onChunk);
+        resolve(parseInt(m[1], 10));
+      }
+    };
+    proxyProc.stdout.on('data', onChunk);
+    proxyProc.stderr.on('data', (c) => process.stderr.write(`[proxy] ${c}`));
+    setTimeout(() => reject(new Error('proxy did not start within 5s')), 5000);
+  });
+
+  try {
+    const response = await new Promise((resolve, reject) => {
+      const body = JSON.stringify({ jsonrpc: '2.0', id: 99, method: 'tools/list' });
+      const req = http.request({
+        method: 'POST',
+        hostname: '127.0.0.1',
+        port: proxyPort,
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: 10000,
+      }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve({
+          status: res.statusCode,
+          body: Buffer.concat(chunks).toString('utf8'),
+          sessionId: res.headers['mcp-session-id'],
+        }));
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+
+    assert.equal(response.status, 200);
+    const parsed = JSON.parse(response.body);
+    assert.equal(parsed.jsonrpc, '2.0');
+    assert.equal(parsed.id, 99, 'JSON-RPC id must be preserved through relay');
+    assert.equal(parsed.result.description, 'Round-trip test',
+      'upstream result must pass through unchanged');
+    assert.equal(parsed.result.messages[0].content.text, 'hello from upstream');
+    // When the caller doesn't send a Mcp-Session-Id, the proxy generates one
+    // (prefixed `proxy-`) and forwards that to upstream. The upstream echoes
+    // it back, and the proxy relays it to the caller. So the session id we
+    // receive is the proxy-generated one, not the upstream's mock value.
+    assert.match(response.sessionId, /^proxy-[0-9a-f-]+$/,
+      'Mcp-Session-Id must be the proxy-generated id when caller sent none');
+  } finally {
+    proxyProc.kill('SIGTERM');
+    await new Promise((r) => proxyProc.on('exit', r));
+    upstream.close();
   }
-  // This test exercises the actual handleRpc → relayToUpstream chain against
-  // a local upstream. Requires handleRpc to support a runtime override of
-  // UPSTREAM; current implementation reads it from argv at import time,
-  // so we instead verify via process spawn. Skipped in this test file.
-  t.skip('requires process spawn for UPSTREAM override; covered in scripts/');
 });
