@@ -33,6 +33,8 @@ claude mcp add --transport http shipswift https://api.shipswift.app/mcp
 | **VS Code Copilot** | Add `{"servers":{"shipswift":{"type":"http","url":"https://api.shipswift.app/mcp"}}}` to `.vscode/mcp.json` |
 | **Windsurf** | Add `{"mcpServers":{"shipswift":{"serverUrl":"https://api.shipswift.app/mcp"}}}` to `~/.codeium/windsurf/mcp_config.json` |
 
+> **Note on `prompts/get` probe errors:** Some MCP clients (MiMo Code, etc.) probe prompts at session start with empty arguments. The shipswift server rejects these with `-32602`. If your logs are noisy because of this, run the optional local proxy at [`mcp-proxy/`](./mcp-proxy/) and point your client at `http://127.0.0.1:7654/mcp` instead. The fix is also tracked in [upstream issue #61](https://github.com/signerlabs/ShipSwift/issues/61).
+
 Restart your AI tool after adding the server.
 
 ### Step 3: Start Building

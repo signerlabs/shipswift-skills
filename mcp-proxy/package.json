@@ -1,0 +1,27 @@
+{
+  "name": "@shipswift/mcp-proxy",
+  "version": "1.0.0",
+  "description": "Local MCP proxy that fills missing required args for shipswift prompts (build-feature, explore-recipes) before forwarding to api.shipswift.app/mcp. Fixes -32602 errors emitted by standard MCP clients' prompts/get capability probes.",
+  "main": "shipswift-mcp-proxy.js",
+  "bin": {
+    "shipswift-mcp-proxy": "./shipswift-mcp-proxy.js"
+  },
+  "scripts": {
+    "start": "node shipswift-mcp-proxy.js",
+    "test": "node --test test/shipswift-mcp-proxy.test.js",
+    "test:integration": "node shipswift-mcp-proxy.js --port 7657 & sleep 1 && bash test/integration-test.sh 7657"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "shipswift",
+    "proxy",
+    "ai-coding",
+    "claude-code",
+    "cursor"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
