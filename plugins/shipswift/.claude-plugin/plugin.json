@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "name": "shipswift",
-  "description": "Build iOS apps faster with production-ready SwiftUI recipes. Includes animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat). Powered by the ShipSwift MCP server.",
-  "version": "1.0.0",
+  "description": "Build iOS apps faster with production-ready SwiftUI recipes. 81 free recipes bundled in the skill (animations, charts, UI components, full-stack modules); 4 Pro recipes via the ShipSwift recipe server.",
+  "version": "2.0.0",
   "homepage": "https://shipswift.app",
   "repository": "https://github.com/signerlabs/shipswift-skills"
 }

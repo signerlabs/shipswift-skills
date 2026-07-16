@@ -1,19 +1,22 @@
 # CLAUDE.md
 
 ## Project Overview
-ShipSwift Skills + Plugin cross-platform distribution (public repo: signerlabs/shipswift-skills). Provides AI coding tool integration for ShipSwift recipes via Skills (npx) and Claude Code Plugin.
+ShipSwift Skills + Plugin cross-platform distribution (public repo: signerlabs/shipswift-skills). Skills-first strategy: 81 free recipes are bundled inside the `shipswift` skill (progressive disclosure — SKILL.md + references/); the 4 Pro recipes are delivered via the MCP server with an API key.
 
 ## Development Constraints
 - Public repo — all comments and docs in English
-- Skills follow the `npx skills add` standard format
+- Skills follow the `npx skills add` standard format (agentskills.io)
 - Plugin follows Claude Code Plugin spec (.mcp.json + skills/)
-- Recipe Server endpoint: `https://api.shipswift.app/mcp`
+- Recipe Server endpoint (Pro recipes only): `https://api.shipswift.app/mcp`
+
+## Generated Content — Do Not Edit Manually
+- `skills/shipswift/references/` is **generated** by `../server/scripts/sync-skills.sh`. Source of truth for recipe content is the server repo `src/recipes/`. To update: edit recipes in the server repo, then re-run the sync script.
+- `plugins/shipswift/skills/` is a **script-maintained mirror** of `skills/`. Never edit it directly.
+- `skills/shipswift/SKILL.md` is hand-written (the canonical copy). After editing it, re-run the sync script to refresh the plugin mirror.
 
 ## Directory Conventions
-- `skills/` — Cross-platform Skills (SKILL.md format, works with 30+ AI tools)
-- `plugins/shipswift/` — Claude Code Plugin (auto-configures MCP + skills)
-- `plugins/shipswift/.mcp.json` — MCP server auto-configuration
-- `plugins/shipswift/skills/` — Plugin-bundled skills (mirrors top-level skills/)
+- `skills/shipswift/` — the single cross-platform skill (SKILL.md + references/)
+- `plugins/shipswift/` — Claude Code Plugin (.mcp.json for Pro MCP + mirrored skill)
 
 ## 关联项目
 
