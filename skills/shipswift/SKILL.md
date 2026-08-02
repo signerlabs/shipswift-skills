@@ -1,6 +1,6 @@
 ---
 name: shipswift
-description: ShipSwift recipe library — 85 production-ready SwiftUI recipes for iOS/macOS covering animations (shimmer, confetti, typewriter, 27 Metal shaders), charts (line, bar, donut, radar, heatmap, 3D network graph), UI components (onboarding, alert, stepper, search bar) and full-stack modules (Cognito/Supabase auth, camera, chat, StoreKit subscriptions, CDK infra). Use when building SwiftUI features, adding animations/charts/components, or when the user mentions ShipSwift.
+description: ShipSwift recipe library — 89 production-ready SwiftUI recipes for iOS/macOS covering animations (view transitions, particle transitions, change effects, shimmer, confetti, typewriter, 27 Metal shaders), charts (line, bar, donut, radar, heatmap, 3D network graph), UI components (onboarding, alert, stepper, search bar) and full-stack modules (Cognito/Supabase auth, camera, chat, StoreKit subscriptions, CDK infra). Use when building SwiftUI features, adding animations/charts/components, or when the user mentions ShipSwift.
 ---
 
 # ShipSwift Recipes
@@ -9,7 +9,7 @@ Production-ready SwiftUI implementations you can copy into iOS/macOS apps. Each 
 
 ## How to use
 
-1. **Find a recipe**: read [references/index.md](references/index.md) — the full catalog (85 recipes across animation / chart / component / module) with one-line descriptions.
+1. **Find a recipe**: read [references/index.md](references/index.md) — the full catalog (89 recipes across animation / chart / component / module) with one-line descriptions.
 2. **Read the recipe**: free recipes are bundled locally at `references/<category>/<id>.md`. Always read the full recipe file before writing code — do not improvise from the index line alone.
 3. **Integrate**: follow the recipe's integration checklist. Keep the `SW` type prefix and `.sw` view-modifier naming conventions unless the user asks otherwise.
 
@@ -29,7 +29,7 @@ The bundled references match the latest ShipSwift release. For the newest source
 
 ## Pro recipes
 
-4 recipes are Pro tier, marked **Pro** in the index: `subscription-storekit`, `tiktok-tracking`, `subject-lifting`, `export-share`. Their full docs (architecture, integration checklist, pitfalls) are delivered through the ShipSwift MCP server and are not bundled here.
+5 recipes are Pro tier, marked **Pro** in the index: `subscription-storekit`, `subscription-revenuecat`, `tiktok-tracking`, `subject-lifting`, `export-share`. Their full docs (architecture, integration checklist, pitfalls) are delivered through the ShipSwift MCP server and are not bundled here.
 
 To unlock Pro:
 

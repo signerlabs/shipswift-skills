@@ -29,7 +29,7 @@ The skill costs almost nothing at rest — recipe docs are loaded only when your
 
 Every recipe is a self-contained doc: architecture overview + full source code + integration checklist + known pitfalls.
 
-**81 of 85 recipes are free** and bundled in the skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
+**84 of 89 recipes are free** and bundled in the skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
 
 ## ShipSwift Pro
 
@@ -76,7 +76,7 @@ signerlabs/shipswift-skills/
 │   └── shipswift/
 │       ├── SKILL.md                  # The skill (hand-written)
 │       └── references/               # GENERATED — 81 free recipes + index.md
-│           ├── index.md              # Full catalog (85 recipes, Pro rows marked)
+│           ├── index.md              # Full catalog (89 recipes, Pro rows marked)
 │           ├── animation/            # 40 recipes
 │           ├── chart/                # 9 recipes
 │           ├── component/            # 22 recipes
