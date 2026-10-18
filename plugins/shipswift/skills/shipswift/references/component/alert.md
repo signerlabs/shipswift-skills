@@ -10,10 +10,15 @@ tags: [component, feedback, alert, toast, notification, SwiftUI]
 
 Global alert overlay that displays toast-style notifications at the top of the screen. Supports four preset styles (info, success, warning, error) and fully custom styling. Auto-dismisses after a configurable duration.
 
+On iOS the toast renders in a dedicated top-level `UIWindow` (windowLevel above system alerts, hit-test passthrough) — it is never covered by sheets or fullScreenCovers, so alerts fired from inside a sheet show instantly. On macOS it stays a root-view overlay. Public API is identical on both platforms.
+
 ## Source Code
 
 ```swift
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - SWAlertType
 
@@ -202,18 +207,80 @@ private struct SWAlertView: View {
     }
 }
 
+// MARK: - Top-Level Window Host (iOS)
+
+#if canImport(UIKit)
+/// Passthrough window: only the toast itself receives touches;
+/// everything else falls through to the windows below.
+private final class SWAlertPassthroughWindow: UIWindow {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let view = super.hitTest(point, with: event)
+        // The hosting controller's container view itself = empty area → pass through
+        return view == rootViewController?.view ? nil : view
+    }
+}
+
+/// Dedicated top-level window (windowLevel above system alerts) so sheets and
+/// fullScreenCovers can never cover the toast. Mounted once, app-lifetime.
+@MainActor
+private enum SWAlertWindowHost {
+    static var window: UIWindow?
+
+    static func mountIfNeeded() {
+        guard window == nil,
+              let scene = UIApplication.shared.connectedScenes
+                  .compactMap({ $0 as? UIWindowScene })
+                  .first(where: { $0.activationState == .foregroundActive })
+                  ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
+        else { return }
+        let host = UIHostingController(rootView: SWAlertOverlayRoot())
+        host.view.backgroundColor = .clear
+        let window = SWAlertPassthroughWindow(windowScene: scene)
+        window.windowLevel = .alert + 1
+        window.backgroundColor = .clear
+        window.rootViewController = host
+        window.isHidden = false
+        self.window = window
+    }
+}
+
+/// Root view inside the dedicated window: reads the singleton, top-aligned.
+private struct SWAlertOverlayRoot: View {
+    let alertManager = SWAlertManager.shared
+
+    var body: some View {
+        VStack {
+            SWAlertView()
+                .padding(.top, 40)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .animation(.spring(duration: 0.3), value: alertManager.isShowing)
+    }
+}
+#endif
+
 // MARK: - View Modifier
 
 private struct SWAlertModifier: ViewModifier {
     let alertManager = SWAlertManager.shared
 
     func body(content: Content) -> some View {
+        #if canImport(UIKit)
+        // iOS: render in a dedicated top-level window — never covered by
+        // sheets/fullScreenCovers, no need to delay until dismiss animations end.
+        content
+            .onAppear { SWAlertWindowHost.mountIfNeeded() }
+        #else
+        // macOS: keep the root-view overlay (sheets attach inside the window
+        // there, so full-screen occlusion is not a concern).
         content
             .overlay(alignment: .top) {
                 SWAlertView()
                     .padding(.top, 40)
             }
             .animation(.spring(duration: 0.3), value: alertManager.isShowing)
+        #endif
     }
 }
 
@@ -224,6 +291,61 @@ extension View {
     ///
     /// Use at the App entry point:
     /// ```swift
+    /// @main
+    /// struct MyApp: App {
+    ///     var body: some Scene {
+    ///         WindowGroup {
+    ///             ContentView()
+    ///                 .swAlert()
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    func swAlert() -> some View {
+        modifier(SWAlertModifier())
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    VStack(spacing: 20) {
+        Button("Info") {
+            SWAlertManager.shared.show(.info, message: "This is an info message")
+        }
+        .buttonStyle(.bordered)
+        
+        Button("Success") {
+            SWAlertManager.shared.show(.success, message: "Saved successfully")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Warning") {
+            SWAlertManager.shared.show(.warning, message: "Slow connection")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Error") {
+            SWAlertManager.shared.show(.error, message: "Operation failed, please retry")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Custom") {
+            SWAlertManager.shared.show(
+                icon: "star.fill",
+                message: "Custom alert style",
+                textColor: .yellow,
+                backgroundStyle: AnyShapeStyle(.black),
+                borderColor: .yellow
+            )
+        }
+        .buttonStyle(.bordered)
+    }
+    .font(.headline)
+    .frame(maxWidth: .infinity)
+    .swAlert()
+}
+```swift
     /// @main
     /// struct MyApp: App {
     ///     var body: some Scene {

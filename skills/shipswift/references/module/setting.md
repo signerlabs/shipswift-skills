@@ -3,7 +3,7 @@ id: setting
 title: Settings View
 description: Pre-built settings page with app info section, account management, notification toggles, feedback/rating links, and legal links (iOS and macOS)
 tier: free
-tags: [settings, preferences, account, SwiftUI, configuration]
+tags: [settings, preferences, account, SwiftUI, configuration, delete account, restore purchases, App Review]
 ---
 
 ## What This Solves
@@ -370,6 +370,37 @@ private func deleteAccount() {
 }
 ```
 
+### Account & Support Sections (App Review-ready)
+
+Reviewers look for these in Settings — a delete action hidden behind tapping a profile card is easy to miss (5.1.1(v): "easy to find").
+
+```swift
+Section("Account") {
+    // 3.1.1: restoring must be reachable outside the paywall too
+    Button("Restore Purchases") { Task { await purchases.restore() } }
+    if auth.isLinked {
+        Button("Sign Out") { isSignOutConfirmPresented = true }
+        Button("Delete Account", role: .destructive) { isDeleteConfirmPresented = true }
+    } else {
+        // Guests have server-side data too: let them erase it
+        Button("Delete My Data", role: .destructive) { isDeleteConfirmPresented = true }
+    }
+}
+Section("Support") {
+    Link("Rate the App", destination: URL(string: "https://apps.apple.com/app/id<APP_ID>?action=write-review")!)
+    Link("Contact Support", destination: URL(string: "mailto:support@yourapp.com?subject=App%20Support")!)
+}
+.alert("Delete your account?", isPresented: $isDeleteConfirmPresented) {
+    Button("Delete", role: .destructive) { deleteAccount() }
+    Button("Cancel", role: .cancel) {}
+} message: {
+    // Subscriptions are billed by Apple: deleting the account does NOT cancel them
+    Text("This permanently deletes your data and photos. Active subscriptions are not cancelled — manage them in Settings › Apple ID › Subscriptions.")
+}
+```
+
+For an Apple-linked account, `deleteAccount()` must first re-run Sign in with Apple to obtain a fresh `authorizationCode` and pass it to the backend, which revokes the Apple authorization — see [auth-supabase-anonymous](recipe://auth-supabase-anonymous) pitfall #10.
+
 ### Change the Language Options
 
 Modify the `Picker` to add or remove languages:
@@ -387,6 +418,6 @@ Picker("Language", selection: $appLanguage) {
 
 1. **Image assets required** — The recommended apps section uses `ImageResource` references (`.smileMaxLogo`, `.fullpackLogo`, etc.). If these assets are missing from your asset catalog, the build will fail. Either add placeholder images or remove the section.
 2. **`@AppStorage("appLanguage")` does not change `Locale`** — This preference key is app-level only. It does not override the system locale. You need to read this value in your views and conditionally format dates, numbers, and strings accordingly.
-3. **Delete account is client-side only by default** — The template stub does not call any backend API. If your app has server-side user data, you must implement proper backend cleanup (e.g., Cognito `deleteUser` + DynamoDB record removal) in the `deleteAccount()` method.
+3. **Delete account is client-side only by default** — The template stub does not call any backend API. If your app has server-side user data, you must implement proper backend cleanup (e.g., Cognito `deleteUser` + DynamoDB record removal) in the `deleteAccount()` method. "Cleanup" also means **stored files** (photos in R2 / Storage — a cascade never deletes them, see [infra-supabase-storage](recipe://infra-supabase-storage) §5) and, for Sign in with Apple users, **revoking the Apple authorization** with a fresh `authorizationCode` (5.1.1(v)). If the confirmation promises "deletes your photos", the backend must actually delete them.
 4. **Force-unwrapped URLs** — The recommended app URLs use `URL(string:)!`. If a URL string is malformed, the app will crash. Verify all URL strings are valid before shipping.
 5. **Sign Out does not navigate** — After signing out, the view remains on the settings screen. You typically need to observe the auth state at a higher level (e.g., in your root view) and switch to the login screen when the user becomes unauthenticated.

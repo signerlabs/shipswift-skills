@@ -2,7 +2,7 @@
 
 **Install once. Build iOS apps with production-ready SwiftUI recipes — right inside your AI coding tool.**
 
-ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as an **Agent Skill**: 81 free recipes are bundled directly inside the skill — no server, no MCP, no configuration.
+ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as an **Agent Skill**: 85 free recipes are bundled directly inside the skill — no server, no MCP, no configuration.
 
 ## Quick Start
 
@@ -29,11 +29,11 @@ The skill costs almost nothing at rest — recipe docs are loaded only when your
 
 Every recipe is a self-contained doc: architecture overview + full source code + integration checklist + known pitfalls.
 
-**84 of 89 recipes are free** and bundled in the skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
+**85 of 91 recipes are free** and bundled in the skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
 
 ## ShipSwift Pro
 
-4 advanced module recipes require ShipSwift Pro ($89 one-time, lifetime access): **StoreKit 2 Subscriptions**, **TikTok Ad Attribution**, **Subject Lifting**, and **Export & Share**.
+6 advanced module recipes require ShipSwift Pro ($89 one-time, lifetime access): **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
 
 1. Purchase at [shipswift.app](https://shipswift.app) and get your API key.
 2. Connect the ShipSwift recipe server (MCP) with your key:
@@ -75,11 +75,11 @@ signerlabs/shipswift-skills/
 ├── skills/
 │   └── shipswift/
 │       ├── SKILL.md                  # The skill (hand-written)
-│       └── references/               # GENERATED — 81 free recipes + index.md
-│           ├── index.md              # Full catalog (89 recipes, Pro rows marked)
-│           ├── animation/            # 40 recipes
+│       └── references/               # GENERATED — 85 free recipes + index.md
+│           ├── index.md              # Full catalog (91 recipes, Pro rows marked)
+│           ├── animation/            # 43 recipes
 │           ├── chart/                # 9 recipes
-│           ├── component/            # 22 recipes
+│           ├── component/            # 23 recipes
 │           └── module/               # 10 free recipes
 ├── plugins/
 │   └── shipswift/

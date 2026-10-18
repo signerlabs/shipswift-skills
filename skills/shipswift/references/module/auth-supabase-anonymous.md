@@ -3,7 +3,7 @@ id: auth-supabase-anonymous
 title: Anonymous-First Authentication with Supabase
 description: Anonymous-first authentication for iOS apps — users access core features immediately without signing in, then optionally link Sign in with Apple which keeps the SAME user id (zero data migration). Uses Supabase anonymous sign-in for a real signed JWT, Hono middleware for three-level access control, dual-mode JWT verification (JWKS ES256 preferred, HS256 fallback), and a dependency-free iOS client built on URLSession (no supabase-swift).
 tier: free
-tags: [authentication, Supabase, anonymous, guest, Sign in with Apple, linkIdentity, RLS, JWT, JWKS, middleware, Hono, Cloudflare Workers, zero-dependency, data migration]
+tags: [authentication, Supabase, anonymous, guest, Sign in with Apple, linkIdentity, RLS, JWT, JWKS, middleware, Hono, Cloudflare Workers, zero-dependency, data migration, account deletion, token revocation, offline]
 ---
 
 ## What This Solves
@@ -357,6 +357,10 @@ final class SWUserManager {
                 try await anonLogin()
             }
         } catch {
+            // Offline-first apps: when tokens exist and the refresh failed TRANSIENTLY (offline
+            // cold launch, 5xx), keep the tokens and enter the main UI on cached data instead —
+            // persist the last userId / isAnonymous next to the tokens, retry on the next
+            // foreground or first 401. An error page here strands users in airplane mode.
             sessionState = .error(message: "Sign-in failed. Please retry.")
         }
     }
@@ -383,7 +387,10 @@ final class SWUserManager {
     }
 
     private func performRefresh() async throws -> String {
-        guard let currentRefresh = refreshToken else { return try await reAnon() }
+        // No refresh token = signed out / deleted while a request was in flight. Throw — never
+        // re-anon here, or a late 401 silently mints a NEW account into the Keychain (pitfall #11).
+        // Only bootstrap with an empty Keychain (or an explicit "continue as guest") issues one.
+        guard let currentRefresh = refreshToken else { throw SWServiceError.unauthorized }
         do {
             let resp: SWAuthTokenResponse = try await client.publicRequest(
                 "/v1/auth/refresh", method: .post, body: ["refreshToken": currentRefresh]
@@ -437,9 +444,17 @@ final class SWUserManager {
 
     /// Permanently delete the current account, then immediately anonymous-sign-in again so the
     /// app keeps working (equivalent to a brand-new anonymous user).
-    func deleteAccount() async throws {
+    /// - Parameter appleAuthorizationCode: for an Apple-linked account, run Sign in with Apple once
+    ///   more right before deleting and pass `credential.authorizationCode` (UTF-8 string, valid
+    ///   5 min, single use) so the backend can revoke the Apple authorization (pitfall #10).
+    ///   nil for anonymous users.
+    func deleteAccount(appleAuthorizationCode: String? = nil) async throws {
+        struct DeleteBody: Encodable { let appleAuthorizationCode: String? }
         struct Deleted: Decodable { let deleted: String }
-        let _: Deleted = try await client.authorizedRequest("/v1/auth/account", method: .delete)
+        let _: Deleted = try await client.authorizedRequest(
+            "/v1/auth/account", method: .delete,
+            body: DeleteBody(appleAuthorizationCode: appleAuthorizationCode)
+        )
         SWKeychainStore.delete(SWKeychainStore.Key.accessToken)
         SWKeychainStore.delete(SWKeychainStore.Key.refreshToken)
         accessToken = nil; refreshToken = nil; userId = nil
@@ -768,7 +783,9 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
 ```typescript
 import { Hono } from "hono";
+import { isAuthApiError, isAuthSessionMissingError } from "@supabase/supabase-js";
 import { z } from "zod";
+import { revokeAppleAuthorization } from "../lib/apple";
 import { serviceClient, anonClient } from "../lib/supabase";
 import { identityMiddleware } from "../middleware/auth";
 import type { AppEnv } from "../types";
@@ -803,17 +820,45 @@ authRoute.post("/anon", async (c) => {
 // The access token expires in ~1h; the refresh_token IS the credential, so this route is NOT
 // behind identityMiddleware (an expired access token would always fail verification). Keeping
 // "iOS talks only to Hono" means the backend proxies the refresh with the anon client.
+//
+// ⚠️ 401 is a contract: the client wipes its Keychain on 401 (pitfall #4). Return 401 ONLY when
+// the refresh token itself is dead; anything transient must be 503 so the client keeps it.
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
+
+/**
+ * Is this refresh failure DEFINITIVE (token expired / already rotated / session terminated /
+ * user deleted)? GoTrue answers those with a 4xx AuthApiError or AuthSessionMissingError
+ * (session_not_found). Network errors and 5xx surface as AuthRetryableFetchError; 408/429 are
+ * transient too — none of those may make the client throw its credentials away.
+ */
+function isDefinitiveRefreshFailure(error: unknown): boolean {
+  if (isAuthSessionMissingError(error)) return true;
+  if (!isAuthApiError(error)) return false;
+  return error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429;
+}
 
 authRoute.post("/refresh", async (c) => {
   const parsed = refreshSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Refresh failed" }, 401);
+  // A malformed body is a client bug, not a dead credential → 400, never 401.
+  if (!parsed.success) return c.json({ error: "Invalid parameters", code: "invalid_parameters" }, 400);
 
   const supabase = anonClient(c.env);
-  const { data, error } = await supabase.auth.refreshSession({
-    refresh_token: parsed.data.refreshToken,
-  });
-  if (error || !data.session || !data.user) return c.json({ error: "Refresh failed" }, 401);
+  let result: Awaited<ReturnType<typeof supabase.auth.refreshSession>>;
+  try {
+    result = await supabase.auth.refreshSession({ refresh_token: parsed.data.refreshToken });
+  } catch {
+    return c.json({ error: "Auth service unavailable, please retry", code: "auth_unavailable" }, 503);
+  }
+  const { data, error } = result;
+  if (error) {
+    if (isDefinitiveRefreshFailure(error)) {
+      return c.json({ error: "Session expired", code: "refresh_token_invalid" }, 401);
+    }
+    return c.json({ error: "Auth service unavailable, please retry", code: "auth_unavailable" }, 503);
+  }
+  if (!data.session || !data.user) {
+    return c.json({ error: "Auth service unavailable, please retry", code: "auth_unavailable" }, 503);
+  }
 
   return c.json({
     userId: data.user.id,
@@ -834,7 +879,7 @@ authRoute.post("/refresh", async (c) => {
 // Requires (Supabase console): (1) Authentication → enable "Manual Linking";
 //   (2) Auth → Providers → Apple → add your bundle id to Client IDs (native-only: no OAuth
 //   secret / signing key needed). GoTrue validates the id_token audience against those Client
-//   IDs, so no APPLE_BUNDLE_ID env var is needed on the backend.
+//   IDs, so linking needs no APPLE_BUNDLE_ID env var (account-deletion revoke does, see 3b).
 const linkSchema = z.object({
   appleIdToken: z.string().min(1),
   nonce: z.string().optional(),          // RAW SIWA nonce (client sent SHA256(nonce) to Apple)
@@ -908,13 +953,95 @@ authRoute.post("/link", identityMiddleware, async (c) => {
 // ── DELETE /v1/auth/account — permanent, irreversible ──
 // admin.deleteUser removes auth.users → ON DELETE CASCADE clears the whole tree
 // (profiles → business tables). Deletes the CURRENT token's user; does not accept a client id.
+//
+// Order matters:
+//   ① collect the user's storage object keys FIRST — the cascade deletes the rows that list them
+//     (see infra-supabase-storage §5; skip if you store no files);
+//   ② revoke Sign in with Apple when the client sent a fresh authorizationCode (pitfall #10) —
+//     best effort, never blocks the deletion;
+//   ③ admin.deleteUser;
+//   ④ only now delete the objects: if ③ fails the account is still whole, photos included.
+const deleteSchema = z.object({
+  appleAuthorizationCode: z.string().min(1).max(2048).optional(), // absent for anonymous users
+}).nullable();
+
 authRoute.delete("/account", identityMiddleware, async (c) => {
   const { userId } = c.get("authUser");
+  const parsed = deleteSchema.safeParse(await c.req.json().catch(() => null));
+  const appleCode = parsed.success ? parsed.data?.appleAuthorizationCode : undefined;
+
+  // ① const keys = await collectObjectKeys(...)   // your storage layer, BEFORE the cascade
+
+  if (appleCode) {
+    const outcome = await revokeAppleAuthorization(c.env, appleCode); // "revoked" | "skipped" | "failed"
+    console.log("delete: siwa revoke", userId, outcome);
+  }
+
   const supabase = serviceClient(c.env);
   const { error } = await supabase.auth.admin.deleteUser(userId);
-  if (error) return c.json({ error: "Delete account failed", detail: error.message }, 500);
+  if (error) return c.json({ error: "Delete account failed", code: "delete_failed" }, 503);
+
+  // ④ await deleteObjects(keys)   // best effort; log failures, a scheduled orphan sweep backs it up
   return c.json({ deleted: userId });
 });
+```
+
+#### 3b. src/lib/apple.ts — Sign in with Apple revocation (account deletion)
+
+App Review 5.1.1(v) (enforced since 2022-06-30): an app that offers Sign in with Apple must **revoke the user's Apple authorization** when they delete their account. The id_token flow above never stores Apple tokens, so the client re-runs SIWA right before deleting and uploads the one-time `authorizationCode` (valid 5 minutes); the backend exchanges it for a refresh token and revokes it. Needs a **Sign in with Apple-enabled `.p8` key** (Certificates, IDs & Profiles → Keys → enable "Sign in with Apple", primary App ID = your app) — unlike linking, which needs no key at all. For native SIWA the `client_id` is your **bundle id**.
+
+```typescript
+import * as jose from "jose";
+import type { Env } from "../types";
+
+const APPLE_AUTH = "https://appleid.apple.com";
+
+/** client_secret = ES256 JWT signed with the SIWA .p8 (max 6 months; 5 minutes is plenty here). */
+async function clientSecret(env: Env): Promise<string> {
+  const key = await jose.importPKCS8(env.APPLE_SIWA_PRIVATE_KEY!, "ES256");
+  const now = Math.floor(Date.now() / 1000);
+  return new jose.SignJWT({})
+    .setProtectedHeader({ alg: "ES256", kid: env.APPLE_SIWA_KEY_ID! })
+    .setIssuer(env.APPLE_TEAM_ID!)
+    .setIssuedAt(now)
+    .setExpirationTime(now + 300)
+    .setAudience(APPLE_AUTH)
+    .setSubject(env.APPLE_BUNDLE_ID)
+    .sign(key);
+}
+
+const postForm = (path: string, form: Record<string, string>) =>
+  fetch(`${APPLE_AUTH}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(form),
+    signal: AbortSignal.timeout(8_000),
+  });
+
+/** Exchange the one-time authorizationCode, then revoke. Best effort: never throws. */
+export async function revokeAppleAuthorization(
+  env: Env, authorizationCode: string,
+): Promise<"revoked" | "skipped" | "failed"> {
+  if (!env.APPLE_SIWA_KEY_ID || !env.APPLE_SIWA_PRIVATE_KEY || !env.APPLE_TEAM_ID) return "skipped";
+  try {
+    const secret = await clientSecret(env);
+    const tokenRes = await postForm("/auth/token", {
+      client_id: env.APPLE_BUNDLE_ID, client_secret: secret,
+      code: authorizationCode, grant_type: "authorization_code",
+    });
+    if (!tokenRes.ok) return "failed";
+    const tokens = (await tokenRes.json().catch(() => ({}))) as { refresh_token?: string; access_token?: string };
+    const token = tokens.refresh_token ?? tokens.access_token;
+    if (!token) return "failed";
+    const revokeRes = await postForm("/auth/revoke", {
+      client_id: env.APPLE_BUNDLE_ID, client_secret: secret, token,
+      token_type_hint: tokens.refresh_token ? "refresh_token" : "access_token",
+    });
+    return revokeRes.ok ? "revoked" : "failed";
+  } catch {
+    return "failed";
+  }
+}
 ```
 
 #### 4. src/index.ts — Route registration (Cloudflare Workers entry)
@@ -952,6 +1079,11 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;  // bypasses RLS; server-side secret, never shipped to client
   SUPABASE_ANON_KEY: string;          // apikey for the user-JWT / anon clients
   SUPABASE_JWT_SECRET?: string;       // optional: HS256 legacy secret; ES256 projects use JWKS
+  // Sign in with Apple revocation on account deletion (3b). All four set → revoke; else skipped.
+  APPLE_BUNDLE_ID: string;            // native SIWA client_id (plain var)
+  APPLE_TEAM_ID?: string;             // client_secret iss (plain var)
+  APPLE_SIWA_KEY_ID?: string;         // SIWA-enabled .p8 Key ID (plain var)
+  APPLE_SIWA_PRIVATE_KEY?: string;    // that .p8's PEM text — SECRET
 }
 
 /**
@@ -1085,7 +1217,9 @@ create policy "items_all_own" on items
   //   B. production: Cloudflare console → Settings → Variables and Secrets (Secret type),
   //      or `npx wrangler secret put <NAME>`:
   //        SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,
-  //        SUPABASE_JWT_SECRET (only if the project still uses HS256)
+  //        SUPABASE_JWT_SECRET (only if the project still uses HS256),
+  //        APPLE_SIWA_PRIVATE_KEY (SIWA .p8 PEM, for account-deletion revoke)
+  // Plain vars (non-secret) go in "vars": APPLE_BUNDLE_ID, APPLE_TEAM_ID, APPLE_SIWA_KEY_ID
 }
 ```
 
@@ -1112,6 +1246,8 @@ create policy "items_all_own" on items
 - [ ] Add `lib/supabase.ts` (serviceClient / userClient / anonClient)
 - [ ] Add `middleware/auth.ts` (identityMiddleware + authMiddleware, dual-mode JWT)
 - [ ] Add `routes/auth.ts` (/anon, /refresh, /link, DELETE /account) and register in `index.ts`
+- [ ] `/refresh` returns 401 **only** for a definitive token failure (503 transient, 400 malformed)
+- [ ] Create a **Sign in with Apple-enabled `.p8`** and set `APPLE_TEAM_ID` / `APPLE_SIWA_KEY_ID` / `APPLE_SIWA_PRIVATE_KEY` so account deletion revokes the Apple authorization (`lib/apple.ts`)
 - [ ] Set secrets in Cloudflare (never in `wrangler.jsonc` / git)
 - [ ] Use `userClient` for per-user data (RLS); use `serviceClient` only for system ops
 
@@ -1132,6 +1268,8 @@ create policy "items_all_own" on items
 - [ ] Kill + reopen: token reused from Keychain (NO new anonymous user created)
 - [ ] Delete app + reopen: Keychain cleared → brand-new anonymous user
 - [ ] Concurrent 401s trigger exactly one refresh (no refresh storm)
+- [ ] Airplane-mode cold launch keeps the Keychain tokens (no new anonymous user afterwards)
+- [ ] Delete Account on an Apple-linked user: the app disappears from Settings → Apple ID → Sign in with Apple
 - [ ] Two different users' tokens cannot read each other's rows (RLS isolation test)
 
 ## Common Customizations
@@ -1201,6 +1339,8 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 
 **Fix**: only a **definitive 401** on the refresh token (expired / revoked) falls back to a new anonymous user. Network errors / 5xx / decode failures must **rethrow** and keep the old Keychain token, so the next attempt can still succeed. `performRefresh()` implements exactly this distinction.
 
+**The server half (easy to miss)**: the client's 401 rule is only as good as the backend's status codes. A `/refresh` route that answers *every* failure with 401 — the original version of this recipe did — turns a GoTrue blip, a Supabase 5xx or a rate limit into "token dead", and the client wipes its credentials anyway. Return 401 only for a definitive failure (`isDefinitiveRefreshFailure`: 4xx `AuthApiError` except 408/429, or `AuthSessionMissingError`), 503 for everything transient, 400 for a malformed body. Seen in production (Trovy, 2026-10): an airplane-mode cold launch cleared the Keychain and re-issued an anonymous account — the guest's whole inventory became an unreachable orphan. Offline-first apps should additionally keep the tokens and enter the main UI on cached data when the launch-time refresh fails transiently (see the `bootstrap()` catch).
+
 ### 5. Sign in with Apple returns name/email only once
 
 **Symptom**: after the first sign-in, `fullName` / `email` come back empty.
@@ -1213,7 +1353,7 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 
 **Symptom**: `/v1/auth/link` returns an error even though the id_token is valid.
 
-**Fix**: enable **Manual Linking** in the Supabase console, and add your bundle id to **Auth → Providers → Apple → Client IDs**. GoTrue validates the id_token audience against those Client IDs — this is why the backend needs no `APPLE_BUNDLE_ID` env var.
+**Fix**: enable **Manual Linking** in the Supabase console, and add your bundle id to **Auth → Providers → Apple → Client IDs**. GoTrue validates the id_token audience against those Client IDs — this is why linking needs no `APPLE_BUNDLE_ID` env var (account-deletion revoke does use it as `client_id`, pitfall #10).
 
 ### 7. Concurrent 401s must share one refresh
 
@@ -1234,6 +1374,44 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 **Symptom**: latency is poor for your users, or a compliance requirement is unmet, and you cannot change it.
 
 **Fix**: the region is chosen at project creation and **cannot be changed afterwards** — pick it correctly on step one. Moving regions later means creating a new project and migrating data.
+
+### 10. Account deletion must revoke Sign in with Apple
+
+**Symptom**: App Review rejects under 5.1.1(v), or a deleted user still sees your app under Settings → Apple ID → Sign-In & Security → Sign in with Apple.
+
+**Cause**: since 2022-06-30 Apple requires apps that offer Sign in with Apple to revoke the user's authorization through Apple's REST API when the account is deleted. `admin.deleteUser` only removes your rows; the id_token link flow never stored an Apple token to revoke with.
+
+**Fix**: for an Apple-linked account, re-run Sign in with Apple right before deleting (same `ASAuthorizationAppleIDProvider` request; no scopes needed) and send `credential.authorizationCode` (UTF-8 decode the `Data`) with `DELETE /v1/auth/account`; the backend exchanges it at `/auth/token` with a client_secret signed by a **SIWA-enabled .p8** and calls `/auth/revoke` (backend §3b). Treat revoke as best effort — log failures, never block the deletion. In the delete confirmation, also say that App Store subscriptions are billed by Apple and are **not** cancelled by deleting the account.
+
+### 11. Late requests after sign-out must not mint a new anonymous account
+
+**Symptom**: after Sign Out (or Delete Account) the app shows the login screen, yet the next launch lands silently in a brand-new empty guest account the user never chose.
+
+**Cause**: a request already in flight gets 401 → refresh → no refresh token → "re-anon" → a fresh anonymous session is written to the Keychain behind the login screen.
+
+**Fix**: only two paths may call `/v1/auth/anon`: `bootstrap()` with an empty Keychain, and an explicit "continue as guest". With no refresh token, `performRefresh()` throws `.unauthorized` (as in the code above). If you add a Sign Out, clear the tokens first and drop responses that arrive for the old session (e.g. a session generation counter).
+
+### 12. Path B with an anonymous-data merge: flush, merge atomically, fail loudly
+
+**Symptom**: a guest signs in with an Apple ID that already owns an account; some of the guest's items never show up in the recovered account, or the whole guest library vanishes from the device.
+
+**Cause** (when you extend Path B to move the guest's rows into the recovered account — this recipe's Path B only switches sessions): (a) items still in the client's offline queue are discarded when the client resets local state for the new account; (b) moving rows with several separate `update`s can stop halfway; (c) returning `signed_in` after a failed merge makes the client switch accounts and wipe local data while the guest rows sit in an anonymous account nobody can reach.
+
+**Fix**: (a) push the offline queue to the server before calling `/v1/auth/link`, and refuse to link while it cannot drain; (b) do the move in **one** Postgres function = one transaction, callable only by the backend:
+
+```sql
+create or replace function public.merge_households(p_from uuid, p_to uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_from is null or p_to is null or p_from = p_to then return; end if;
+  update public.spaces set household_id = p_to, updated_at = now() where household_id = p_from;
+  update public.items  set household_id = p_to, updated_at = now() where household_id = p_from;
+end; $$;
+revoke execute on function public.merge_households(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.merge_households(uuid, uuid) to service_role;
+```
+
+then `await serviceClient(env).rpc("merge_households", { p_from, p_to })` and delete the anonymous user only after it succeeded; (c) if the merge fails, answer 503 (`merge_failed`) instead of `signed_in` — the user stays a guest with everything intact and can retry. Same hygiene for any `SECURITY DEFINER` trigger function (e.g. the `profiles` bootstrap trigger): Postgres grants EXECUTE to PUBLIC by default, so `revoke execute ... from public, anon, authenticated` — triggers do not need the caller's EXECUTE privilege.
 
 ## Security Rules (do not skip)
 

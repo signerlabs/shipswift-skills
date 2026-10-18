@@ -344,10 +344,10 @@ itemsRoute.delete("/:id", async (c) => {
 });
 ```
 
-For account deletion, remove the user's whole folder **before** `admin.deleteUser` (see the delete flow in [auth-supabase-anonymous](recipe://auth-supabase-anonymous)):
+For account deletion, remove the user's whole folder **after** a successful `admin.deleteUser` (see the delete flow in [auth-supabase-anonymous](recipe://auth-supabase-anonymous)). The folder name is the user id, so it is still listable once the rows are gone — and if `deleteUser` fails, the account is left whole, photos included, instead of an account whose files already vanished:
 
 ```typescript
-// src/routes/auth.ts — call before admin.deleteUser(userId) in DELETE /v1/auth/account.
+// src/routes/auth.ts — call right after a successful admin.deleteUser(userId) in DELETE /v1/auth/account.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function removeUserObjects(svc: SupabaseClient, userId: string): Promise<void> {
@@ -363,6 +363,8 @@ async function removeUserObjects(svc: SupabaseClient, userId: string): Promise<v
   }
 }
 ```
+
+**Flat key layouts** (objects named `p/<uuid>.png` with ownership proven by DB rows — common with R2 or when files must survive an account merge without moving): nothing on the storage side knows the owner, so the order is **collect → delete user → delete objects** — read every key from the user's rows *before* `admin.deleteUser` (the cascade erases the only list), then delete the user, then remove the objects in chunks (R2 `delete()` takes ≤ 1000 keys per call). Normalize any logical prefixes while collecting (pitfall #9).
 
 ## Integration Checklist
 
@@ -531,6 +533,14 @@ const { data: signed } = await svc.storage.from(PHOTO_BUCKET).createSignedUrls(p
 
 **Fix**: on this stack the client talks **only** to your Worker ([auth-supabase-anonymous](recipe://auth-supabase-anonymous)); uploads go through the Worker endpoint. The `storage.objects` RLS policies exist as insurance, not as an invitation to build a client-direct path.
 
+### 9. Logical prefixes in a stored key array break ownership checks
+
+**Symptom**: some images load fine on the device that took them but return 404 after a reinstall or on a second device — in Trovy, every receipt photo (2026-10 audit).
+
+**Cause**: the client tagged entries inside the key array with a logical prefix (`receipt:p/<uuid>.png` in `photo_keys`) to mark their role. The delete path stripped the prefix, but the read path's ownership check matched the bare key exactly (`contains("photo_keys", [key])`) — it can never match the prefixed form. The original device never noticed: it served the bytes from its local cache.
+
+**Fix**: normalize prefixes in **every** place that maps an array entry to an object — ownership check (match `key` *or* `receipt:key`), delete, account deletion, export — ideally through one shared helper. Better still, keep roles out of the key string (a parallel `receipt_keys` column or an object array `{ key, role }`), so the stored value always *is* the object key. Test reads from a fresh install, not just the capturing device.
+
 ### Production Readiness Checklist
 
 - [ ] Bucket is **private** with `file_size_limit` + `allowed_mime_types` set in the migration
@@ -539,4 +549,6 @@ const { data: signed } = await svc.storage.from(PHOTO_BUCKET).createSignedUrls(p
 - [ ] Object paths are derived server-side from the verified JWT — nothing client-supplied reaches a Storage call
 - [ ] DB stores object paths only; signed URLs are minted per read with a short TTL and never logged or persisted
 - [ ] Row-delete and account-delete flows remove the corresponding objects; a scheduled orphan sweep backs them up
+- [ ] Account deletion order: keys collected while rows still exist (flat layouts) → user deleted → objects removed
+- [ ] Every image path (incl. role-prefixed keys) loads from a fresh install, not only the capturing device
 - [ ] The two-token IDOR test passes: cross-user photo-url 404 · cross-user upload 404 · direct Storage read with a foreign user JWT blocked

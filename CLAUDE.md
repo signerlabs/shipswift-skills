@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project Overview
-ShipSwift Skills + Plugin cross-platform distribution (public repo: signerlabs/shipswift-skills). Skills-first strategy: 81 free recipes are bundled inside the `shipswift` skill (progressive disclosure — SKILL.md + references/); the 4 Pro recipes are delivered via the MCP server with an API key.
+ShipSwift Skills + Plugin cross-platform distribution (public repo: signerlabs/shipswift-skills). Skills-first strategy: 85 free recipes are bundled inside the `shipswift` skill (progressive disclosure — SKILL.md + references/); the 6 Pro recipes are delivered via the MCP server with an API key.
 
 ## Development Constraints
 - Public repo — all comments and docs in English
