@@ -271,6 +271,6 @@ SWChromaticGlass(tilt: tilt, separation: 0.6) { cardArtwork }
 
 ## Notes / Gotchas
 
-- **`maxSampleOffset` is load-bearing.** This is the only effect in the new Metal set that samples neighbouring pixels (R/B channels at `position ± offset`). The maximum offset the shader reaches is `separation(max 1.0) × (1×0.85 + 0.15) × 14 ≈ 14 px`; the renderer requests `28 px` of headroom. If you drop it to `.zero` (as the foil family uses), the layer pre-clips its content and the RGB fringing is truncated at the edges. Do not copy `.zero` from the other recipes here.
+- **`maxSampleOffset` is load-bearing.** This is the only effect in the new Metal set that samples neighbouring pixels (R/B channels at `position ± offset`). The maximum offset the shader reaches is `separation(max 1.0) × (1×0.85 + 0.15) × 14 ≈ 14 px`; the renderer requests `28 px` of headroom. If you drop it to `.zero` (as the foil family uses), the layer pre-clips its content and the RGB fringing is truncated at the edges. Do not copy `.zero` from the other skills here.
 - The `0.15` floor inside `offsetAmount` keeps a baseline split even at the centre, so the fringing reads across the whole photo rather than only at the corners.
 - The effect is deliberately subtle — it reads as glass-over-card, not a glitch. Raise `separation` and `intensity` together for a stronger split.

@@ -10,9 +10,9 @@ tags: [authentication, Cognito, AWS, Apple Sign In, Google Sign In, Amplify, log
 
 Provides a login-required authentication system for iOS and macOS apps backed by AWS Cognito, covering the full lifecycle: email/password registration, social sign-in (Apple, Google), phone OTP, token management with automatic refresh, onboarding flow, account deletion, and password reset — with the complete CDK infrastructure to deploy it all.
 
-> **Choosing between auth recipes**: This recipe requires users to sign in before accessing
+> **Choosing between auth skills**: This skill requires users to sign in before accessing
 > any features (e.g., social apps, enterprise tools). If your app should let users try
-> core features without signing in first, use [auth-cognito-anonymous](recipe://auth-cognito-anonymous) instead.
+> core features without signing in first, use [auth-cognito-anonymous](skill://auth-cognito-anonymous) instead.
 
 ## Architecture
 
@@ -57,14 +57,14 @@ App Runner (Hono backend, direct)
 | Criteria | Cognito | Firebase Auth | Supabase Auth |
 |----------|---------|---------------|---------------|
 | AWS-native integration | First-class (API Gateway JWT, IAM, S3) | Requires bridge | Requires bridge |
-| Identity Pool (guest mode) | Built-in (see [auth-cognito-anonymous](recipe://auth-cognito-anonymous)) | Not available | Not available |
+| Identity Pool (guest mode) | Built-in (see [auth-cognito-anonymous](skill://auth-cognito-anonymous)) | Not available | Not available |
 | Social login config | CDK as code | Console-only | Dashboard-only |
 | Pricing at scale | Free up to 50K MAU | Free up to 50K | Free up to 50K |
 | Token refresh | SDK handles automatically | SDK handles automatically | SDK handles automatically |
 | Infrastructure as Code | Full CDK support | Partial (Firebase Extensions) | Limited |
 | Vendor lock-in risk | Moderate (JWT standard) | High (Firebase SDK) | Low (PostgreSQL) |
 
-**Bottom line**: If your backend is on AWS, Cognito is the natural choice. Hono middleware validates JWTs directly, keeping auth logic minimal. For apps that need anonymous/guest access, see [auth-cognito-anonymous](recipe://auth-cognito-anonymous).
+**Bottom line**: If your backend is on AWS, Cognito is the natural choice. Hono middleware validates JWTs directly, keeping auth logic minimal. For apps that need anonymous/guest access, see [auth-cognito-anonymous](skill://auth-cognito-anonymous).
 
 ## Dependencies
 
@@ -1725,7 +1725,7 @@ Place this file in your Xcode project (add to target):
 }
 ```
 
-> Note: This config does not include `CredentialsProvider` because login-required apps don't need Identity Pool. If you need anonymous guest access, see [auth-cognito-anonymous](recipe://auth-cognito-anonymous) for the full config with `CredentialsProvider`. The `aws.cognito.signin.user.admin` scope is required for the account deletion feature.
+> Note: This config does not include `CredentialsProvider` because login-required apps don't need Identity Pool. If you need anonymous guest access, see [auth-cognito-anonymous](skill://auth-cognito-anonymous) for the full config with `CredentialsProvider`. The `aws.cognito.signin.user.admin` scope is required for the account deletion feature.
 
 ### Backend (CDK)
 
@@ -2066,11 +2066,11 @@ if isSignedIn {
 
 ### Add anonymous/guest mode with Identity Pool
 
-For apps that want users to try features before signing up, see [auth-cognito-anonymous](recipe://auth-cognito-anonymous). It provides Identity Pool setup, anonymous Identity IDs, three-level middleware, and data migration from anonymous to authenticated accounts.
+For apps that want users to try features before signing up, see [auth-cognito-anonymous](skill://auth-cognito-anonymous). It provides Identity Pool setup, anonymous Identity IDs, three-level middleware, and data migration from anonymous to authenticated accounts.
 
 ### Add API Gateway (optional security layer)
 
-If you need rate limiting, WAF, or gateway-level JWT validation in addition to Hono middleware, add API Gateway in front of App Runner. See [auth-cognito-anonymous](recipe://auth-cognito-anonymous) Common Customizations for the CDK code.
+If you need rate limiting, WAF, or gateway-level JWT validation in addition to Hono middleware, add API Gateway in front of App Runner. See [auth-cognito-anonymous](skill://auth-cognito-anonymous) Common Customizations for the CDK code.
 
 ### Require strong passwords
 

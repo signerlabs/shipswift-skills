@@ -10,7 +10,7 @@ tags: [Supabase, Cloudflare Workers, wrangler, Hono, infrastructure, migrations,
 
 Manually clicking through the Supabase dashboard and pasting SQL into the SQL Editor is error-prone, unrepeatable, and impossible to version control. As your app grows you will need to reproduce your schema for a staging project, a second app, or a fresh region — and "remember which buttons I clicked" does not scale.
 
-This recipe defines the entire **Supabase + Cloudflare Workers** stack as code:
+This skill defines the entire **Supabase + Cloudflare Workers** stack as code:
 
 - **Reproducibility** — `supabase db push` replays every migration onto a fresh project; `wrangler deploy` ships the backend from source
 - **Version control** — schema changes are timestamped SQL files in git, reviewed in the same PR as application code
@@ -18,7 +18,7 @@ This recipe defines the entire **Supabase + Cloudflare Workers** stack as code:
 - **Secret hygiene by construction** — a single rule (`.dev.vars` locally, Cloudflare Secret in prod, never git) keeps the RLS-bypassing `service_role` key out of every tracked file
 - **Cost floor near zero** — both platforms have generous free tiers; you pay per request, not per idle hour
 
-This is the **serverless counterpart** to [infra-cdk](recipe://infra-cdk). Read them side by side: where CDK provisions a VPC + Aurora + App Runner + Cognito + API Gateway (rich control, ~$80/mo floor, minutes to deploy), this stack trades that control for a managed BaaS that has no idle cost and deploys in seconds. Choose CDK when you need VPC-private resources, fine-grained IAM, or AWS-native services; choose Supabase + Workers for indie iOS apps that want the shortest path from `git push` to production.
+This is the **serverless counterpart** to [infra-cdk](skill://infra-cdk). Read them side by side: where CDK provisions a VPC + Aurora + App Runner + Cognito + API Gateway (rich control, ~$80/mo floor, minutes to deploy), this stack trades that control for a managed BaaS that has no idle cost and deploys in seconds. Choose CDK when you need VPC-private resources, fine-grained IAM, or AWS-native services; choose Supabase + Workers for indie iOS apps that want the shortest path from `git push` to production.
 
 ## Architecture
 
@@ -63,7 +63,7 @@ This is the **serverless counterpart** to [infra-cdk](recipe://infra-cdk). Read 
 | **Cloudflare Secret** | Prod secrets | Encrypted, injected at runtime; never in `wrangler.jsonc` or git |
 | **jose** | JWT verification | Verifies Supabase JWTs against JWKS (ES256) or the legacy secret (HS256) |
 
-> **iOS stays dependency-free**: the client only ever talks to the Worker over REST. It never imports `supabase-swift` and never holds the `service_role` key. The Worker is the only thing that touches Supabase. See [auth-supabase-anonymous](recipe://auth-supabase-anonymous).
+> **iOS stays dependency-free**: the client only ever talks to the Worker over REST. It never imports `supabase-swift` and never holds the `service_role` key. The Worker is the only thing that touches Supabase. See [auth-supabase-anonymous](skill://auth-supabase-anonymous).
 
 ## Dependencies
 
@@ -216,7 +216,7 @@ create policy "items_all_own" on items
   with check ( (select auth.uid()) = owner_id );
 ```
 
-> **Pure DDL that PostgREST can't run** (e.g. `alter table ... drop column`) must go through `supabase db push` or the SQL Editor — you cannot apply it with the `service_role` REST client. Full RLS patterns live in [infra-supabase-rls](recipe://infra-supabase-rls); Storage buckets in [infra-supabase-storage](recipe://infra-supabase-storage).
+> **Pure DDL that PostgREST can't run** (e.g. `alter table ... drop column`) must go through `supabase db push` or the SQL Editor — you cannot apply it with the `service_role` REST client. Full RLS patterns live in [infra-supabase-rls](skill://infra-supabase-rls); Storage buckets in [infra-supabase-storage](skill://infra-supabase-storage).
 
 ### 3. Cloudflare Workers configuration
 
@@ -316,7 +316,7 @@ export function anonClient(env: Env): SupabaseClient {
 }
 ```
 
-> Workers talk to Supabase over PostgREST-over-HTTP, not a raw Postgres TCP socket, so there is **no connection pool to exhaust** — creating a fresh client per request is safe and recommended. This is a key difference from the Aurora + RDS Proxy model in [infra-cdk](recipe://infra-cdk), where connection storms are a real risk.
+> Workers talk to Supabase over PostgREST-over-HTTP, not a raw Postgres TCP socket, so there is **no connection pool to exhaust** — creating a fresh client per request is safe and recommended. This is a key difference from the Aurora + RDS Proxy model in [infra-cdk](skill://infra-cdk), where connection storms are a real risk.
 
 ### 6. JWT verification: JWKS (ES256) preferred, HS256 fallback
 
@@ -400,7 +400,7 @@ supabase link --project-ref <project-ref>
 
 - [ ] Migrations authored idempotently in `supabase/migrations/`
 - [ ] `npm run db:push` applies cleanly to the linked project
-- [ ] RLS enabled on every user-data table (see [infra-supabase-rls](recipe://infra-supabase-rls))
+- [ ] RLS enabled on every user-data table (see [infra-supabase-rls](skill://infra-supabase-rls))
 
 ### 4. Secrets
 
@@ -446,7 +446,7 @@ $$);
 
 ### 4. Rate limiting / WAF at the edge
 
-Add **Rate Limiting Rules** / **WAF** in front of the Worker (dashboard → Security). This is the Cloudflare analogue of putting API Gateway in front of App Runner in [infra-cdk](recipe://infra-cdk).
+Add **Rate Limiting Rules** / **WAF** in front of the Worker (dashboard → Security). This is the Cloudflare analogue of putting API Gateway in front of App Runner in [infra-cdk](skill://infra-cdk).
 
 ## Known Pitfalls
 
@@ -503,8 +503,8 @@ Add **Rate Limiting Rules** / **WAF** in front of the Worker (dashboard → Secu
 ### Production Readiness Checklist
 
 - [ ] Project in the correct **immutable** region, migrated to **ES256** signing keys
-- [ ] RLS enabled and tested on every user-data table ([infra-supabase-rls](recipe://infra-supabase-rls))
-- [ ] Private buckets + signed URLs for any user files ([infra-supabase-storage](recipe://infra-supabase-storage))
+- [ ] RLS enabled and tested on every user-data table ([infra-supabase-rls](skill://infra-supabase-rls))
+- [ ] Private buckets + signed URLs for any user files ([infra-supabase-storage](skill://infra-supabase-storage))
 - [ ] All secrets are Cloudflare **Secret** type; nothing sensitive in git or `wrangler.jsonc`
 - [ ] `enable_refresh_token_rotation = true` and an anonymous-sign-in rate limit set
 - [ ] Edge Rate Limiting / WAF in front of the Worker

@@ -718,7 +718,7 @@ NavigationStack {
 ## Notes / Gotchas
 
 - **This is a composite showcase, not a single shader.** The look is four stacked SwiftUI passes (canvas → flowing `MeshGradient` light → alpha-driven glass `layerEffect` → breathing `.shadow` bloom). The Metal kernel only handles pass 3; the canvas, the flowing color and the bloom are plain SwiftUI.
-- **The shape comes from the mask, not an SDF.** Unlike the analytic-SDF `glass` recipe, this kernel recovers the surface normal from the masked layer's **alpha gradient** across the antialiased silhouette. Masking the flowing light to the symbol BEFORE the shader is what gives the layer the alpha contour the shader reads back.
+- **The shape comes from the mask, not an SDF.** Unlike the analytic-SDF `glass` skill, this kernel recovers the surface normal from the masked layer's **alpha gradient** across the antialiased silhouette. Masking the flowing light to the symbol BEFORE the shader is what gives the layer the alpha contour the shader reads back.
 - **Tap coverage-weighting is mandatory.** The frosted disk weights every tap by its own alpha so the blur never drags transparent exterior pixels into the silhouette; output alpha is the silhouette coverage so the exterior stays fully transparent.
 - **Bloom breathes on the flow's clock.** The two stacked `.shadow` halos pulse their radius/opacity on a slow sine of the same `phase` that drives the flowing light, so the glow never reads as a dead static ring.
 - The `.layerEffect` argument order **must** match the Metal `swGlassLogo` signature exactly: `boundingRect, refraction, frost, thickness, edgeSoftness, fresnel, fresnelSoftness, fresnelColor, tintColor, tintIntensity`.

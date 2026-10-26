@@ -10,10 +10,10 @@ tags: [authentication, Supabase, anonymous, guest, Sign in with Apple, linkIdent
 
 Provides anonymous-first authentication for iOS apps where users can start using core features immediately without creating an account. On first launch the app calls the backend, which does a Supabase **anonymous sign-in** — the user gets a *real*, cryptographically signed JWT (`is_anonymous: true`, `role: authenticated`) and a stable `user id` right away. Later the user can optionally **Sign in with Apple**, which is linked to the *same* Supabase user via `linkIdentity` — the `user id` never changes, so **there is zero data migration**. The backend uses Hono middleware with three access levels: public, identity-required (anonymous + authenticated), and auth-required (non-anonymous / linked only).
 
-> **Choosing between auth recipes**: This recipe is for apps that let users try core features
+> **Choosing between auth skills**: This skill is for apps that let users try core features
 > without signing in first (e.g., utility apps, content apps, freemium tools) on a **Supabase +
 > Cloudflare Workers** stack. If you are on **AWS** (Cognito + App Runner), use
-> [auth-cognito-anonymous](recipe://auth-cognito-anonymous) instead. The two recipes are
+> [auth-cognito-anonymous](skill://auth-cognito-anonymous) instead. The two skills are
 > deliberately structured the same way so you can read them side by side. The key difference:
 > Cognito Identity Pool assigns a *different* Identity ID to anonymous vs. authenticated
 > sessions, so signing in requires a `POST /v1/auth/sync` data-migration step; Supabase keeps
@@ -62,7 +62,7 @@ Supabase
 | 1 | `identityMiddleware` | any valid Supabase JWT, **including anonymous** | own data | **own data (yes — anonymous can write)** |
 | 2 | `authMiddleware` | non-anonymous (linked identity) only | own data | own data + graduated-only ops |
 
-> **Key divergence from [auth-cognito-anonymous](recipe://auth-cognito-anonymous)**: on Cognito
+> **Key divergence from [auth-cognito-anonymous](skill://auth-cognito-anonymous)**: on Cognito
 > the anonymous layer is **read-only**, because an anonymous user only carries a forgeable
 > `X-Identity-Id` header (no verifiable token). On **Supabase, an anonymous user carries a real,
 > signature-verified JWT** (`is_anonymous: true`, `role: authenticated`), so their writes can be
@@ -92,7 +92,7 @@ Supabase
 
 ### iOS
 
-The iOS implementation uses `SWUserManager` as the central state manager. Unlike the Cognito recipe (which delegates to the Amplify SDK), the Supabase client is **fully dependency-free**: it implements token storage, the anonymous/refresh/link flows, and Sign in with Apple itself, talking only to your Hono backend over `URLSession`.
+The iOS implementation uses `SWUserManager` as the central state manager. Unlike the Cognito skill (which delegates to the Amplify SDK), the Supabase client is **fully dependency-free**: it implements token storage, the anonymous/refresh/link flows, and Sign in with Apple itself, talking only to your Hono backend over `URLSession`.
 
 #### 1. SWUserManager.swift — Session state, token storage, API client, and auth orchestration
 
@@ -478,7 +478,7 @@ final class SWUserManager {
 
 #### 2. App.swift — Auth-driven navigation (no SDK initialization)
 
-Unlike the Cognito recipe there is no SDK to configure — no `Amplify.configure()`, no `amplifyconfiguration.json`. The manager bootstraps itself against your backend.
+Unlike the Cognito skill there is no SDK to configure — no `Amplify.configure()`, no `amplifyconfiguration.json`. The manager bootstraps itself against your backend.
 
 ```swift
 import SwiftUI
@@ -774,9 +774,9 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
 > **Note**: the middleware is `async` because JWKS verification is async (Hono awaits it
 > automatically). The `authUser` output shape (`{ userId, email, isAnonymous }`) is a deliberate
-> cross-stack contract: it mirrors the Cognito recipe's `authUser` so your business routes read
+> cross-stack contract: it mirrors the Cognito skill's `authUser` so your business routes read
 > `c.get("authUser")` without caring which backend issued the token. See
-> [auth-cognito-anonymous](recipe://auth-cognito-anonymous). The only difference is the optional
+> [auth-cognito-anonymous](skill://auth-cognito-anonymous). The only difference is the optional
 > `isAnonymous` field, which Cognito's Identity-Pool model does not have.
 
 #### 3. src/routes/auth.ts — anonymous sign-in, refresh, SIWA link (dual-path), delete
@@ -1107,7 +1107,7 @@ export type AppEnv = {
 
 ### Infrastructure
 
-Where the Cognito recipe uses AWS CDK to provision an Identity Pool + User Pool, the Supabase stack is configured through the Supabase console + a SQL migration + a Cloudflare `wrangler.jsonc`. (For the full RLS patterns and tests, see [infra-supabase-rls](recipe://infra-supabase-rls); for the Supabase CLI / Workers deployment workflow, see [infra-supabase](recipe://infra-supabase).)
+Where the Cognito skill uses AWS CDK to provision an Identity Pool + User Pool, the Supabase stack is configured through the Supabase console + a SQL migration + a Cloudflare `wrangler.jsonc`. (For the full RLS patterns and tests, see [infra-supabase-rls](skill://infra-supabase-rls); for the Supabase CLI / Workers deployment workflow, see [infra-supabase](skill://infra-supabase).)
 
 #### 1. Supabase project setup (console + config.toml)
 
@@ -1145,7 +1145,7 @@ Console checklist (hosted project — several of these are mandatory or `linkIde
 
 #### 2. Database: profiles table + RLS (SQL migration)
 
-This is the Supabase equivalent of the Cognito recipe's `users` table. The difference: isolation is enforced by **RLS in the database**, not by application-layer `WHERE` clauses.
+This is the Supabase equivalent of the Cognito skill's `users` table. The difference: isolation is enforced by **RLS in the database**, not by application-layer `WHERE` clauses.
 
 ```sql
 -- profiles — 1:1 with auth.users, id reuses the auth user id.
@@ -1198,7 +1198,7 @@ create policy "items_all_own" on items
 
 > For child tables (grandchildren of `profiles`), use the forward-set subquery pattern
 > `parent_id in (select id from items where owner_id = (select auth.uid()))`, and index every
-> column a policy touches. Full patterns + isolation tests: [infra-supabase-rls](recipe://infra-supabase-rls).
+> column a policy touches. Full patterns + isolation tests: [infra-supabase-rls](skill://infra-supabase-rls).
 
 #### 3. Cloudflare Workers configuration (wrangler.jsonc + secrets)
 
@@ -1276,7 +1276,7 @@ create policy "items_all_own" on items
 
 ### 1. Rate limiting / WAF at the Cloudflare edge
 
-Where the Cognito recipe adds API Gateway, on Cloudflare you add **Rate Limiting Rules** / **WAF** in front of the Worker (dashboard → Security). Supabase also rate-limits anonymous sign-ins per IP (`config.toml [auth.rate_limit] anonymous_users`).
+Where the Cognito skill adds API Gateway, on Cloudflare you add **Rate Limiting Rules** / **WAF** in front of the Worker (dashboard → Security). Supabase also rate-limits anonymous sign-ins per IP (`config.toml [auth.rate_limit] anonymous_users`).
 
 ### 2. Add email/password or magic-link sign-up
 
@@ -1284,7 +1284,7 @@ Supabase Auth supports email/password and magic links out of the box. Add a back
 
 ### 3. Storage scoped by user id (RLS on storage.objects)
 
-Store per-user files under a `{userId}/...` object path and enforce it with RLS on `storage.objects`. Upload through a `service_role` backend endpoint that derives the path server-side (never accept a client-supplied path → prevents IDOR). Full pattern: [infra-supabase-storage](recipe://infra-supabase-storage).
+Store per-user files under a `{userId}/...` object path and enforce it with RLS on `storage.objects`. Upload through a `service_role` backend endpoint that derives the path server-side (never accept a client-supplied path → prevents IDOR). Full pattern: [infra-supabase-storage](skill://infra-supabase-storage).
 
 ### 4. Feature gating (some features require a linked account)
 
@@ -1321,7 +1321,7 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 
 **Symptom** (expected, positive): after Sign in with Apple, all the user's anonymous data is still there.
 
-**Why**: `linkIdentity` attaches the Apple identity to the *same* `auth.users` row, so `auth.uid()` is unchanged and every `owner_id` FK still matches. This is the headline advantage over Cognito Identity Pool, where the Identity ID changes and you must run a `POST /v1/auth/sync` migration (see [auth-cognito-anonymous](recipe://auth-cognito-anonymous) pitfall #2). **Do not** build a migration step here — there is nothing to migrate.
+**Why**: `linkIdentity` attaches the Apple identity to the *same* `auth.users` row, so `auth.uid()` is unchanged and every `owner_id` FK still matches. This is the headline advantage over Cognito Identity Pool, where the Identity ID changes and you must run a `POST /v1/auth/sync` migration (see [auth-cognito-anonymous](skill://auth-cognito-anonymous) pitfall #2). **Do not** build a migration step here — there is nothing to migrate.
 
 ### 3. Fresh install must clear the Keychain
 
@@ -1339,7 +1339,7 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 
 **Fix**: only a **definitive 401** on the refresh token (expired / revoked) falls back to a new anonymous user. Network errors / 5xx / decode failures must **rethrow** and keep the old Keychain token, so the next attempt can still succeed. `performRefresh()` implements exactly this distinction.
 
-**The server half (easy to miss)**: the client's 401 rule is only as good as the backend's status codes. A `/refresh` route that answers *every* failure with 401 — the original version of this recipe did — turns a GoTrue blip, a Supabase 5xx or a rate limit into "token dead", and the client wipes its credentials anyway. Return 401 only for a definitive failure (`isDefinitiveRefreshFailure`: 4xx `AuthApiError` except 408/429, or `AuthSessionMissingError`), 503 for everything transient, 400 for a malformed body. Seen in production (Trovy, 2026-10): an airplane-mode cold launch cleared the Keychain and re-issued an anonymous account — the guest's whole inventory became an unreachable orphan. Offline-first apps should additionally keep the tokens and enter the main UI on cached data when the launch-time refresh fails transiently (see the `bootstrap()` catch).
+**The server half (easy to miss)**: the client's 401 rule is only as good as the backend's status codes. A `/refresh` route that answers *every* failure with 401 — the original version of this skill did — turns a GoTrue blip, a Supabase 5xx or a rate limit into "token dead", and the client wipes its credentials anyway. Return 401 only for a definitive failure (`isDefinitiveRefreshFailure`: 4xx `AuthApiError` except 408/429, or `AuthSessionMissingError`), 503 for everything transient, 400 for a malformed body. Seen in production (Trovy, 2026-10): an airplane-mode cold launch cleared the Keychain and re-issued an anonymous account — the guest's whole inventory became an unreachable orphan. Offline-first apps should additionally keep the tokens and enter the main UI on cached data when the launch-time refresh fails transiently (see the `bootstrap()` catch).
 
 ### 5. Sign in with Apple returns name/email only once
 
@@ -1395,7 +1395,7 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 
 **Symptom**: a guest signs in with an Apple ID that already owns an account; some of the guest's items never show up in the recovered account, or the whole guest library vanishes from the device.
 
-**Cause** (when you extend Path B to move the guest's rows into the recovered account — this recipe's Path B only switches sessions): (a) items still in the client's offline queue are discarded when the client resets local state for the new account; (b) moving rows with several separate `update`s can stop halfway; (c) returning `signed_in` after a failed merge makes the client switch accounts and wipe local data while the guest rows sit in an anonymous account nobody can reach.
+**Cause** (when you extend Path B to move the guest's rows into the recovered account — this skill's Path B only switches sessions): (a) items still in the client's offline queue are discarded when the client resets local state for the new account; (b) moving rows with several separate `update`s can stop halfway; (c) returning `signed_in` after a failed merge makes the client switch accounts and wipe local data while the guest rows sit in an anonymous account nobody can reach.
 
 **Fix**: (a) push the offline queue to the server before calling `/v1/auth/link`, and refuse to link while it cannot drain; (b) do the move in **one** Postgres function = one transaction, callable only by the backend:
 
@@ -1424,7 +1424,7 @@ The `Authorization: Bearer` token is a **client-supplied string**. A client can 
 base64 `{"sub":"<victim-id>"}` and, if you only base64-decode it, the backend will treat them as
 that victim. **Always** verify with `jose` against the Supabase **JWKS** (ES256) or the legacy
 **secret** (HS256), checking `issuer` + `audience: "authenticated"` + signature, before trusting
-`userId` / `email` / `isAnonymous`. The middleware in this recipe does exactly this.
+`userId` / `email` / `isAnonymous`. The middleware in this skill does exactly this.
 
 ### S2. Enforce data isolation with RLS + userClient — never hand-write `WHERE owner_id`
 
@@ -1448,9 +1448,9 @@ Two parts:
 1. The `service_role` key bypasses every RLS policy → it must live **only** in a server-side
    secret (Cloudflare Secret / `.dev.vars`), **never** be shipped to the client, and **never** be
    committed to git. A leak = full-database compromise.
-2. **Unlike the Cognito recipe, writes ARE permitted at Level 1** (anonymous included), because a
+2. **Unlike the Cognito skill, writes ARE permitted at Level 1** (anonymous included), because a
    Supabase anonymous user carries a real, signature-verified JWT and RLS isolates every write by
    `auth.uid()`. Reserve Level 2 (`authMiddleware`) for operations that genuinely require a
    *graduated* (non-anonymous) identity. Do not blanket-force all writes to Level 2 — that would
-   break the "anonymous users can use core features immediately" promise this recipe exists to
+   break the "anonymous users can use core features immediately" promise this skill exists to
    deliver.

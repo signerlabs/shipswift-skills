@@ -12,7 +12,7 @@ tags: [camera, face detection, Vision, AVFoundation, photo capture, SwiftUI]
 
 Provides a production-ready camera module for iOS apps with live preview, photo capture, pinch-to-zoom, front/back camera switching, photo library picker, and optional real-time face landmark detection using the Vision framework — all wrapped in SwiftUI views ready to drop into any app.
 
-> **Permission timing strategy**: this recipe uses the **use-site request** pattern — camera authorization is requested when `SWCameraManager` is initialized. For an overview of all three permission patterns (use-site / onboarding prefetch / deferred), see [Permission Prefetch Pattern](../component/onboarding-view.md#permission-prefetch-pattern).
+> **Permission timing strategy**: this skill uses the **use-site request** pattern — camera authorization is requested when `SWCameraManager` is initialized. For an overview of all three permission patterns (use-site / onboarding prefetch / deferred), see [Permission Prefetch Pattern](../component/onboarding-view.md#permission-prefetch-pattern).
 
 ## Architecture
 

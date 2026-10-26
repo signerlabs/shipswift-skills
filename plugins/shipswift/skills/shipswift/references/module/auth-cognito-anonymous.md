@@ -10,9 +10,9 @@ tags: [authentication, Cognito, AWS, Identity Pool, anonymous, guest, Apple Sign
 
 Provides anonymous-first authentication for iOS and macOS apps where users can start using core features immediately without creating an account. Every user (anonymous or signed in) gets a unique Identity ID from Cognito Identity Pool, enabling data persistence and optional sign-up later with seamless data migration. The backend uses Hono middleware with three access levels: public, identity-required (anonymous + authenticated), and auth-required (authenticated only).
 
-> **Choosing between auth recipes**: This recipe is for apps that let users try core features
+> **Choosing between auth skills**: This skill is for apps that let users try core features
 > without signing in first (e.g., utility apps, content apps, freemium tools). If your app
-> requires users to sign in before accessing any features, use [auth-cognito](recipe://auth-cognito) instead.
+> requires users to sign in before accessing any features, use [auth-cognito](skill://auth-cognito) instead.
 
 ## Architecture
 
@@ -1634,7 +1634,7 @@ httpApi.addRoutes({
 
 ### 2. Add email/password sign-up
 
-Add email auth methods to `SWUserManager` and `SWAuthService` (see the [auth-cognito](recipe://auth-cognito) recipe for the complete email/password implementation).
+Add email auth methods to `SWUserManager` and `SWAuthService` (see the [auth-cognito](skill://auth-cognito) skill for the complete email/password implementation).
 
 ### 3. S3 permissions scoped by Identity ID
 
@@ -1675,7 +1675,7 @@ struct PremiumFeatureView: View {
 
 ### 5. Add phone OTP login
 
-Add phone authentication methods following the pattern in [auth-cognito](recipe://auth-cognito).
+Add phone authentication methods following the pattern in [auth-cognito](skill://auth-cognito).
 
 ## Known Pitfalls
 
@@ -1723,7 +1723,7 @@ Add phone authentication methods following the pattern in [auth-cognito](recipe:
 
 **Symptom**: `fetchIdentityId()` returns an error — "Identity Pool not configured."
 
-**Fix**: The `CredentialsProvider.CognitoIdentity` section is **required** in `amplifyconfiguration.json`. Without it, the SDK does not know about the Identity Pool. This section is optional in the [auth-cognito](recipe://auth-cognito) recipe but **mandatory** here.
+**Fix**: The `CredentialsProvider.CognitoIdentity` section is **required** in `amplifyconfiguration.json`. Without it, the SDK does not know about the Identity Pool. This section is optional in the [auth-cognito](skill://auth-cognito) skill but **mandatory** here.
 
 ### 7. signOut must re-fetch anonymous Identity ID
 
@@ -1744,7 +1744,7 @@ strings**. A client can send `X-Identity-Id: <victim-id>` and a hand-crafted, ba
 `{"sub":"<victim-sub>"}` and — if you only base64-decode the JWT — the backend will happily
 treat them as that victim. **Always** verify the JWT with `jose` (`createRemoteJWKSet` +
 `jwtVerify`, checking `issuer` + `audience` + signature) before trusting `cognitoSub`/`email`.
-The middleware in this recipe does exactly this.
+The middleware in this skill does exactly this.
 
 ### S2. Business tables must be keyed by a stable `userId` (UUID), never by `identityId`
 

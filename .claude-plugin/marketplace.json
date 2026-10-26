@@ -3,7 +3,7 @@
   "plugins": [
     {
       "name": "shipswift",
-      "description": "Build iOS apps faster with production-ready SwiftUI recipes. 85 free recipes bundled in the skill; 30 Pro recipes via the ShipSwift recipe server.",
+      "description": "Build iOS apps faster with production-ready SwiftUI skills. 85 free skills bundled in the Agent Skill; 30 Pro skills via the ShipSwift MCP server.",
       "path": "plugins/shipswift"
     }
   ]

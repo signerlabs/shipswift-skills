@@ -14,10 +14,10 @@ Row Level Security (RLS) moves isolation **into the database**. Every row carrie
 
 - **Leaks become impossible by construction** — even a buggy route, or a client hitting PostgREST directly with a valid but low-privilege JWT, cannot see or touch another user's rows. The database itself refuses them.
 - **Routes stay clean** — with the user-JWT client you never hand-write `WHERE owner_id`. You `select("*")` and RLS returns only the caller's rows.
-- **Anonymous users are first-class** — a Supabase anonymous sign-in issues a *real* signed JWT (`role: authenticated`, `is_anonymous: true`), so anonymous users hit the same `TO authenticated` policies and safely read/write **their own** data (see [auth-supabase-anonymous](recipe://auth-supabase-anonymous)).
+- **Anonymous users are first-class** — a Supabase anonymous sign-in issues a *real* signed JWT (`role: authenticated`, `is_anonymous: true`), so anonymous users hit the same `TO authenticated` policies and safely read/write **their own** data (see [auth-supabase-anonymous](skill://auth-supabase-anonymous)).
 - **Defense in depth** — RLS is the last and hardest line behind JWT verification and server-side `owner_id` injection; each layer independently prevents an IDOR.
 
-This is the security core of the [infra-supabase](recipe://infra-supabase) stack. Where [infra-cdk](recipe://infra-cdk) isolates data with application-layer `WHERE` clauses over Aurora (the app is the only trusted boundary), Supabase pushes the boundary down to Postgres — read the two side by side. This recipe assumes you already have the Workers + Supabase scaffolding from [infra-supabase](recipe://infra-supabase) and the `serviceClient` / `userClient` factories from [auth-supabase-anonymous](recipe://auth-supabase-anonymous); it focuses only on the RLS layer.
+This is the security core of the [infra-supabase](skill://infra-supabase) stack. Where [infra-cdk](skill://infra-cdk) isolates data with application-layer `WHERE` clauses over Aurora (the app is the only trusted boundary), Supabase pushes the boundary down to Postgres — read the two side by side. This skill assumes you already have the Workers + Supabase scaffolding from [infra-supabase](skill://infra-supabase) and the `serviceClient` / `userClient` factories from [auth-supabase-anonymous](skill://auth-supabase-anonymous); it focuses only on the RLS layer.
 
 ## Architecture
 
@@ -61,7 +61,7 @@ iOS ──REST──▶ Worker (jose verifies sig + iss + aud) ──┐
 
 ## Dependencies
 
-This recipe is pure Postgres (RLS in SQL migrations) plus the two Supabase clients — no new packages beyond the [infra-supabase](recipe://infra-supabase) baseline.
+This skill is pure Postgres (RLS in SQL migrations) plus the two Supabase clients — no new packages beyond the [infra-supabase](skill://infra-supabase) baseline.
 
 ```json
 {
@@ -93,7 +93,7 @@ Add the migration script to your `package.json`:
 }
 ```
 
-> RLS policies are DDL — they must be applied through `supabase db push` (or the SQL Editor), **not** via the PostgREST `service_role` client. See [infra-supabase](recipe://infra-supabase) for the full migration workflow.
+> RLS policies are DDL — they must be applied through `supabase db push` (or the SQL Editor), **not** via the PostgREST `service_role` client. See [infra-supabase](skill://infra-supabase) for the full migration workflow.
 
 ## Implementation
 
@@ -153,11 +153,11 @@ create table if not exists item_events (
 create index if not exists idx_item_events_item_id on item_events (item_id);
 ```
 
-> **`on delete cascade` chains deletes**: deleting the `auth.users` row (account deletion) cascades `profiles → items → item_events`, so `admin.deleteUser(userId)` cleans the whole tree in one call. See the delete flow in [auth-supabase-anonymous](recipe://auth-supabase-anonymous).
+> **`on delete cascade` chains deletes**: deleting the `auth.users` row (account deletion) cascades `profiles → items → item_events`, so `admin.deleteUser(userId)` cleans the whole tree in one call. See the delete flow in [auth-supabase-anonymous](skill://auth-supabase-anonymous).
 
 ### 2. The five RLS rules (write these wrong = leak or slow query)
 
-Every policy in this recipe obeys these five rules. They are not stylistic — each prevents a specific, real failure.
+Every policy in this skill obeys these five rules. They are not stylistic — each prevents a specific, real failure.
 
 ```sql
 -- ── profiles: user can read / update ONLY its own row ──
@@ -191,7 +191,7 @@ create policy "items_all_own" on items
 
 **Rule 1 — wrap `auth.uid()` in `(select auth.uid())`.** Postgres treats a bare `auth.uid()` as a per-row volatile call and re-evaluates it for every row scanned; wrapping it in a scalar subquery lets the planner cache it as an *init-plan* (computed once per query). On a large table the bare form turns a policy into a per-row function call. Always `(select auth.uid())`.
 
-**Rule 2 — every policy carries `TO authenticated`.** Without a role, a policy applies to *all* roles including the unauthenticated `anon` role. `TO authenticated` stops the anon role at step one. (A Supabase **anonymous sign-in** issues a real JWT with `role: authenticated`, so anonymous users still match these policies and read/write their own data — that is intentional; see [auth-supabase-anonymous](recipe://auth-supabase-anonymous).)
+**Rule 2 — every policy carries `TO authenticated`.** Without a role, a policy applies to *all* roles including the unauthenticated `anon` role. `TO authenticated` stops the anon role at step one. (A Supabase **anonymous sign-in** issues a real JWT with `role: authenticated`, so anonymous users still match these policies and read/write their own data — that is intentional; see [auth-supabase-anonymous](skill://auth-supabase-anonymous).)
 
 **Rule 3 — child tables use a forward-set subquery, not a join.**
 
@@ -257,7 +257,7 @@ drop policy if exists "listings_user_update" on listings;
 
 ### 4. The client split (`src/lib/supabase.ts`)
 
-This factory is the hinge of the whole model: `serviceClient` bypasses RLS, `userClient` enforces it. Using the wrong one is how leaks happen. (Full factory including `anonClient` in [infra-supabase](recipe://infra-supabase) / [auth-supabase-anonymous](recipe://auth-supabase-anonymous).)
+This factory is the hinge of the whole model: `serviceClient` bypasses RLS, `userClient` enforces it. Using the wrong one is how leaks happen. (Full factory including `anonClient` in [infra-supabase](skill://infra-supabase) / [auth-supabase-anonymous](skill://auth-supabase-anonymous).)
 
 ```typescript
 // src/lib/supabase.ts
@@ -465,7 +465,7 @@ using ( (select auth.uid()) = owner_id and deleted_at is null )
 
 ### 4. Storage objects scoped by user id
 
-RLS also governs `storage.objects`. Store per-user files under a `{userId}/...` path and enforce it with a policy, uploading through a `service_role` endpoint that derives the path server-side (never trust a client path → prevents IDOR). Full pattern: [infra-supabase-storage](recipe://infra-supabase-storage).
+RLS also governs `storage.objects`. Store per-user files under a `{userId}/...` path and enforce it with a policy, uploading through a `service_role` endpoint that derives the path server-side (never trust a client path → prevents IDOR). Full pattern: [infra-supabase-storage](skill://infra-supabase-storage).
 
 ## Known Pitfalls
 
@@ -551,4 +551,4 @@ RLS also governs `storage.objects`. Store per-user files under a `{userId}/...` 
 - [ ] `service_role`-backed list endpoints strip other users' identifying fields
 - [ ] Public read-only tables: `select` for `anon`/`authenticated`, no user write policy, writes via `service_role`
 - [ ] Two-token cross-access isolation test passes against PostgREST directly (SELECT empty · UPDATE/DELETE 0 rows · forged INSERT 403)
-- [ ] Storage objects (if any) isolated by user-id path with RLS on `storage.objects` ([infra-supabase-storage](recipe://infra-supabase-storage))
+- [ ] Storage objects (if any) isolated by user-id path with RLS on `storage.objects` ([infra-supabase-storage](skill://infra-supabase-storage))

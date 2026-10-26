@@ -45,7 +45,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  gradient: the rim refracts hardest, a golden-angle disk frosts the content,
 //  the same taps split chromatically for dispersion, and tint, directional edge
 //  light, a specular glint and a Fresnel rim are layered on top. It is a
-//  from-scratch Metal recipe.
+//  from-scratch Metal implementation.
 //
 //  This is a sibling of `SWGlassOrb` (which renders a *sphere* with its own
 //  gradient fill); `SWGlass` instead glasses over *arbitrary* content with a
@@ -521,7 +521,7 @@ private extension Color {
 //      layered on top, then cross-faded into the background by an edge mask.
 //
 //  This is a from-scratch Metal implementation of a well-known glass-refraction
-//  recipe, reorganised into a single linear kernel with local helpers.
+//  technique, reorganised into a single linear kernel with local helpers.
 //
 //  Paired with: SWGlass.swift
 //  Entry point: `swGlass` — invoked via SwiftUI `.layerEffect(...)`.

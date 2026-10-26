@@ -10,7 +10,7 @@ tags: [Supabase, Storage, signed URL, private bucket, service_role, RLS, IDOR, s
 
 User files — avatars, photos, attachments — are the easiest place to leak private data. A **public** Supabase bucket makes every object readable by anyone who has (or guesses) its URL, with no token required. Letting the client upload **directly** to Storage with the anon key pushes all validation onto Storage RLS alone, exposes your bucket layout to the client, and breaks the zero-dependency iOS guarantee of this stack. And even with a private bucket, a backend that signs URLs for whatever id the client sends is one missing ownership check away from serving one user's private photos to another (a classic IDOR).
 
-This recipe closes all three holes with one consistent model:
+This skill closes all three holes with one consistent model:
 
 - **Private bucket, as code** — the bucket (size limit, MIME allowlist, `public = false`) is an idempotent SQL migration in `supabase/migrations/`, reproducible on any project via `supabase db push`
 - **Server-side uploads only** — the client POSTs bytes to your Worker; the Worker uploads with the `service_role` client. The client never talks to Storage and never holds any Supabase key
@@ -18,7 +18,7 @@ This recipe closes all three holes with one consistent model:
 - **IDOR-proof paths** — every object lives under `{userId}/...` where `userId` comes from the **verified JWT**, never from the request. Ownership is checked through RLS **before** any `service_role` Storage operation runs
 - **Defense in depth** — RLS policies on `storage.objects` isolate owner folders even if some future code path talks to Storage with a user JWT
 
-This recipe assumes the Workers + Supabase scaffolding from [infra-supabase](recipe://infra-supabase), the `serviceClient` / `userClient` factories and auth middleware from [auth-supabase-anonymous](recipe://auth-supabase-anonymous), and the RLS-isolated `profiles` + `items` schema from [infra-supabase-rls](recipe://infra-supabase-rls) — it adds the file-storage layer on top. (On the AWS stack, the counterpart is S3 + per-identity IAM paths in [infra-cdk](recipe://infra-cdk); read them side by side.)
+This skill assumes the Workers + Supabase scaffolding from [infra-supabase](skill://infra-supabase), the `serviceClient` / `userClient` factories and auth middleware from [auth-supabase-anonymous](skill://auth-supabase-anonymous), and the RLS-isolated `profiles` + `items` schema from [infra-supabase-rls](skill://infra-supabase-rls) — it adds the file-storage layer on top. (On the AWS stack, the counterpart is S3 + per-identity IAM paths in [infra-cdk](skill://infra-cdk); read them side by side.)
 
 ## Architecture
 
@@ -61,7 +61,7 @@ This recipe assumes the Workers + Supabase scaffolding from [infra-supabase](rec
 > `storage.objects` included. Once you call `serviceClient`, nothing downstream protects you —
 > so the RLS-enforced lookup (layer 2) must run **first**, while you are still acting as the
 > user. This is the same "service_role is for system ops only, after the app has decided the
-> caller is allowed" discipline as [infra-supabase-rls](recipe://infra-supabase-rls).
+> caller is allowed" discipline as [infra-supabase-rls](skill://infra-supabase-rls).
 
 **Key decisions:**
 
@@ -75,7 +75,7 @@ This recipe assumes the Workers + Supabase scaffolding from [infra-supabase](rec
 
 ## Dependencies
 
-This recipe is one SQL migration plus the two Supabase clients — no new packages beyond the [infra-supabase](recipe://infra-supabase) baseline.
+This skill is one SQL migration plus the two Supabase clients — no new packages beyond the [infra-supabase](skill://infra-supabase) baseline.
 
 ```json
 {
@@ -119,10 +119,10 @@ your-server/
 │   ├── middleware/
 │   │   └── auth.ts              # verifies the JWT before any path is derived from it
 │   └── routes/
-│       └── items.ts             # photo upload + signed-URL endpoints (this recipe)
+│       └── items.ts             # photo upload + signed-URL endpoints (this skill)
 └── supabase/
     └── migrations/
-        └── 0002_storage.sql     # bucket + storage.objects RLS (this recipe)
+        └── 0002_storage.sql     # bucket + storage.objects RLS (this skill)
 ```
 
 ### 1. Migration: create the private bucket (idempotent SQL)
@@ -155,7 +155,7 @@ alter table items add column if not exists photo_path text;
 
 The primary data path (Worker → `service_role`) **bypasses** these policies, so they do not affect it. Their value is insurance: if any future code path ever talks to Storage with an anon or user JWT, it can still only touch objects under its own `{userId}/...` folder — cross-user reads and writes stay impossible.
 
-The check: object names look like `{userId}/{itemId}.jpg`, and `(storage.foldername(name))[1]` extracts the first folder segment for comparison against `auth.uid()`. Same five RLS rules as [infra-supabase-rls](recipe://infra-supabase-rls): `(select auth.uid())` wrapping, `TO authenticated`, idempotent `drop policy if exists` + `create`.
+The check: object names look like `{userId}/{itemId}.jpg`, and `(storage.foldername(name))[1]` extracts the first folder segment for comparison against `auth.uid()`. Same five RLS rules as [infra-supabase-rls](skill://infra-supabase-rls): `(select auth.uid())` wrapping, `TO authenticated`, idempotent `drop policy if exists` + `create`.
 
 ```sql
 -- Still in supabase/migrations/0002_storage.sql
@@ -344,7 +344,7 @@ itemsRoute.delete("/:id", async (c) => {
 });
 ```
 
-For account deletion, remove the user's whole folder **after** a successful `admin.deleteUser` (see the delete flow in [auth-supabase-anonymous](recipe://auth-supabase-anonymous)). The folder name is the user id, so it is still listable once the rows are gone — and if `deleteUser` fails, the account is left whole, photos included, instead of an account whose files already vanished:
+For account deletion, remove the user's whole folder **after** a successful `admin.deleteUser` (see the delete flow in [auth-supabase-anonymous](skill://auth-supabase-anonymous)). The folder name is the user id, so it is still listable once the rows are gone — and if `deleteUser` fails, the account is left whole, photos included, instead of an account whose files already vanished:
 
 ```typescript
 // src/routes/auth.ts — call right after a successful admin.deleteUser(userId) in DELETE /v1/auth/account.
@@ -386,7 +386,7 @@ async function removeUserObjects(svc: SupabaseClient, userId: string): Promise<v
 ### 3. Clients + secrets
 
 - [ ] Storage operations use `serviceClient` only **after** an RLS-enforced ownership check
-- [ ] The `service_role` key lives only in `.dev.vars` / Cloudflare Secret ([infra-supabase](recipe://infra-supabase)) — never in the iOS app
+- [ ] The `service_role` key lives only in `.dev.vars` / Cloudflare Secret ([infra-supabase](skill://infra-supabase)) — never in the iOS app
 - [ ] The iOS client renders images from signed URLs only; it holds no Supabase key and never calls Storage
 
 ### 4. IDOR test (must pass before shipping)
@@ -420,7 +420,7 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 
 ### 1. Multiple photos per item
 
-Nest one folder level: `{userId}/{itemId}/{photoId}.jpg`. The owner check is unchanged — `(storage.foldername(name))[1]` still extracts `{userId}` — and the DB side becomes a small `item_photos` child table (RLS via the forward-set pattern in [infra-supabase-rls](recipe://infra-supabase-rls)). Remember `list()` is non-recursive: account-deletion cleanup must recurse into each `{itemId}/` subfolder.
+Nest one folder level: `{userId}/{itemId}/{photoId}.jpg`. The owner check is unchanged — `(storage.foldername(name))[1]` still extracts `{userId}` — and the DB side becomes a small `item_photos` child table (RLS via the forward-set pattern in [infra-supabase-rls](skill://infra-supabase-rls)). Remember `list()` is non-recursive: account-deletion cleanup must recurse into each `{itemId}/` subfolder.
 
 ### 2. Accepting more image types
 
@@ -523,7 +523,7 @@ const { data: signed } = await svc.storage.from(PHOTO_BUCKET).createSignedUrls(p
 
 **Cause**: the migration used a bare `insert` (fails on re-apply) or an `upsert`/`update` (overwrites console-set properties).
 
-**Fix**: `insert ... on conflict (id) do nothing` — records the bucket's existence idempotently without touching an existing bucket's properties. Policies pair `drop policy if exists` with `create` for the same reason (see the migration discipline in [infra-supabase](recipe://infra-supabase)).
+**Fix**: `insert ... on conflict (id) do nothing` — records the bucket's existence idempotently without touching an existing bucket's properties. Policies pair `drop policy if exists` with `create` for the same reason (see the migration discipline in [infra-supabase](skill://infra-supabase)).
 
 ### 8. Letting the client upload directly to Storage with the anon key
 
@@ -531,7 +531,7 @@ const { data: signed } = await svc.storage.from(PHOTO_BUCKET).createSignedUrls(p
 
 **Cause**: following generic Supabase tutorials that call `supabase.storage.upload()` from the app.
 
-**Fix**: on this stack the client talks **only** to your Worker ([auth-supabase-anonymous](recipe://auth-supabase-anonymous)); uploads go through the Worker endpoint. The `storage.objects` RLS policies exist as insurance, not as an invitation to build a client-direct path.
+**Fix**: on this stack the client talks **only** to your Worker ([auth-supabase-anonymous](skill://auth-supabase-anonymous)); uploads go through the Worker endpoint. The `storage.objects` RLS policies exist as insurance, not as an invitation to build a client-direct path.
 
 ### 9. Logical prefixes in a stored key array break ownership checks
 

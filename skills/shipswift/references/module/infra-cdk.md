@@ -18,7 +18,7 @@ AWS CDK (Cloud Development Kit) solves this by letting you define your entire AW
 - **Least-privilege by default** — CDK's `grant*` methods generate minimal IAM policies automatically
 - **Cost visibility** — All resources are declared in code, making it easy to audit what you are paying for
 
-This recipe provides a complete, production-tested CDK stack for indie iOS apps: App Runner for your HTTP backend, Aurora Serverless v2 for PostgreSQL, Cognito for authentication, Lambda for serverless tasks, and S3 for file storage.
+This skill provides a complete, production-tested CDK stack for indie iOS apps: App Runner for your HTTP backend, Aurora Serverless v2 for PostgreSQL, Cognito for authentication, Lambda for serverless tasks, and S3 for file storage.
 
 ## Architecture
 
