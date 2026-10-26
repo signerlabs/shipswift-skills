@@ -19,7 +19,7 @@ The four passes are:
 
 This is a first-pass approximation that leans on frost + a cool rim + a soft bloom over flowing color, and intentionally leaves thin-film iridescence, twirl distortion and exact SDF shaping for later refinement.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / `layerEffect`, Metal `stitchable`, `MeshGradient`, `TimelineView`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / `layerEffect`, Metal `stitchable`, `MeshGradient`, `TimelineView`).
 
 ## File Layout
 
@@ -59,7 +59,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //    4. Bloom       — two stacked `.shadow` halos (one wide soft, one tight)
 //                     that breathe slowly, giving the logo an outer cool glow.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` /
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` /
 //  `layerEffect`, Metal `stitchable`, `MeshGradient`, `TimelineView`).
 //
 //  Usage:
@@ -512,7 +512,7 @@ private struct SWGlassLogoSliderRowD: View {
 //
 //  Paired with: SWGlassLogo.swift
 //  Entry point: `swGlassLogo` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -710,7 +710,7 @@ NavigationStack {
 ## Integration Checklist
 
 1. Copy `SWGlassLogo.swift` and `SWGlassLogo.metal` into your Xcode target; the `.metal` file is compiled into the default `ShaderLibrary` automatically.
-2. Confirm the deployment target is iOS 17+ / macOS 14+ — it relies on `MeshGradient`, `TimelineView`, and a Metal `layerEffect`.
+2. Confirm the deployment target is iOS 18+ / macOS 15+ — it relies on `MeshGradient`, `TimelineView`, and a Metal `layerEffect`.
 3. Drop `SWGlassLogo()` straight in; it brings its own near-black canvas, flowing light, glass shader and bloom — no wiring needed.
 4. Place it over a dark surface for the bloom to read; the showcase pins its own #0a0a0a canvas as pass 1.
 5. Swap `symbolName` for any SF Symbol — the silhouette is whatever the symbol draws, recovered from the masked layer's alpha contour.

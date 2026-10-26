@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background of pseudo-3D semi-transparent panels rotating around a central vertical axis. Analytic perspective projection — for each pixel the shader walks 12–20 candidate panels (count is colors-count-dependent so the wheel reads coherently), checks z-depth and lateral position, and composites the surviving fragment. Two interleaved sets (forward / reverse rotation) keep the wheel continuous.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -38,7 +38,7 @@ SWAnimation/SWMetal/
 //  and composites the surviving fragment. Two interleaved sets
 //  (forward / reverse rotation) keep the wheel continuous.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, `colorEffect`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, `colorEffect`,
 //  Metal `stitchable`).
 //
 //  Usage:

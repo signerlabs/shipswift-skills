@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background of a radial multi-colored ring distorted by layered noise. Ring shape is built in polar coordinates from `length` and `atan2`; two phase-shifted FBM noise layers (1...8 octaves of procedural value noise) cross-fade over a 3-second cycle so the smoke perpetually re-rolls without visible looping; the noise warps the polar UV so the ring's silhouette billows. A procedural `hash21` keeps the shader fully self-contained (no sampler / no resource binding).
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -38,7 +38,7 @@ SWAnimation/SWMetal/
 //  smoke perpetually re-rolls without visible looping; the noise
 //  warps the polar UV so the ring's silhouette billows.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, `colorEffect`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, `colorEffect`,
 //  Metal `stitchable`).
 //
 //  Usage:

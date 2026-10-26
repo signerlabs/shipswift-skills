@@ -41,7 +41,6 @@ Tappable card that expands to fill the device display using Apple's native zoom 
 
 import SwiftUI
 
-@available(iOS 18.0, *)
 struct SWFullScreenButton: View {
     var title: String = "ShipSwift"
     var subtitle: String = "Fullstack AI toolkit"
@@ -134,7 +133,6 @@ struct SWFullScreenButton: View {
 /// expanded card calls `dismiss()`, which pops the navigation stack and
 /// triggers the reverse zoom animation. The standard edge-swipe-back
 /// gesture also still works as a system-provided dismiss path.
-@available(iOS 18.0, *)
 private struct SWFullScreenButtonExpandedView: View {
     let title: String
     let subtitle: String
@@ -177,7 +175,6 @@ private struct SWFullScreenButtonExpandedView: View {
     }
 }
 
-@available(iOS 18.0, *)
 #Preview {
     NavigationStack {
         SWFullScreenButton()
@@ -230,7 +227,7 @@ NavigationStack {
 
 - **Why `NavigationStack` is required.** The zoom transition is implemented as a `NavigationLink` push with a `.navigationTransition(.zoom(...))` modifier on the destination. Without a host `NavigationStack`, the `NavigationLink` silently renders as a plain button and the transition never fires. The hosting requirement is what lets the zoom escape any `ScrollView` / nested `VStack` — the push goes through the stack, not through the layout tree.
 
-- **iOS 18+ only.** Both `.matchedTransitionSource(id:in:)` and `.navigationTransition(.zoom(sourceID:in:))` were introduced in iOS 18. The struct is marked `@available(iOS 18.0, *)` and the file is named `SWFullScreenButton+iOS.swift` so Xcode's per-file platform filter can exclude it from macOS targets — do not wrap the body in `#if os(iOS)` as a substitute (per the ShipSwift convention, platform filtering is a build setting).
+- **iOS 18+ only.** Both `.matchedTransitionSource(id:in:)` and `.navigationTransition(.zoom(sourceID:in:))` were introduced in iOS 18, ShipSwift's minimum, so no `@available` annotation is needed. The file is named `SWFullScreenButton+iOS.swift` so Xcode's per-file platform filter can exclude it from macOS targets — do not wrap the body in `#if os(iOS)` as a substitute (per the ShipSwift convention, platform filtering is a build setting).
 
 - **Tap target.** The whole compact card is the `NavigationLink` label; `.buttonStyle(.plain)` removes the default tint so the gradient renders cleanly.
 

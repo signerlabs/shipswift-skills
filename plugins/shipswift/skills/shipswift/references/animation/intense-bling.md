@@ -10,7 +10,7 @@ tags: [animation, metal, shader, holographic, bling, layerEffect, card, SwiftUI]
 
 The most intense member of the foil family. Through SwiftUI's `layerEffect` Metal pipeline, it overlays a dense vertical diamond grid, a multi-hue rainbow built in HSV, three moving light hotspots, and two layers of sparkles (regular + extra-bright "mega" sparkles), all driven by a `tilt` vector for an aggressive "secret-rare card" shimmer. The `intensity` parameter scales every holographic overlay, so the same shader spans a light surface finish (≈ source image) up to the full secret-rare blast.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -46,7 +46,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  three moving hotspots and layered sparkles, all driven by a `tilt`
 //  vector (e.g. from a `DragGesture`) for a "secret-rare card" look.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -174,7 +174,7 @@ private struct SWIntenseBlingRenderer<Content: View>: View {
 //
 //  Paired with: SWIntenseBling.swift
 //  Entry point: `swIntenseBling` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -332,7 +332,7 @@ SWIntenseBling(tilt: tilt, intensity: 1.0) { cardArtwork }
 ## Integration Checklist
 
 1. Copy `SWIntenseBling.swift` and `SWIntenseBling.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a card / photo / SF Symbol in `SWIntenseBling { ... }`; clip it to a `RoundedRectangle`.
 4. Start with a **low** `intensity` (≈ 0.25) if the underlying photo must stay the clear subject; raise toward `1.0` only when you want the full holographic blast to dominate.
 5. Drive `tilt` from a `DragGesture` to make the hotspots and sparkles sweep across the card.

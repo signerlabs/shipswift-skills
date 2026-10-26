@@ -10,7 +10,7 @@ tags: [animation, metal, shader, glass, chromatic-aberration, layerEffect, card,
 
 A subtle chromatic-aberration "glass" pass applied to any view through SwiftUI's `layerEffect` Metal pipeline. The red and blue channels are sampled at opposing offsets that grow toward the edges (non-linear falloff) and follow the `tilt` vector; a soft centre brightness glow finishes the look. Unlike the foil family, this effect **samples neighbouring pixels**, so the renderer gives the `layerEffect` a `maxSampleOffset` budget — without it, edge pixels would clamp and the RGB fringing would be cut off.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -46,7 +46,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  along the `tilt` direction (e.g. from a `DragGesture`), with a soft
 //  centre glow, for a premium glass-over-card feel.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -169,7 +169,7 @@ private struct SWChromaticGlassRenderer<Content: View>: View {
 //
 //  Paired with: SWChromaticGlass.swift
 //  Entry point: `swChromaticGlass` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -264,7 +264,7 @@ SWChromaticGlass(tilt: tilt, separation: 0.6) { cardArtwork }
 ## Integration Checklist
 
 1. Copy `SWChromaticGlass.swift` and `SWChromaticGlass.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a card / photo in `SWChromaticGlass { ... }`; clip it to a `RoundedRectangle`.
 4. Keep the `maxSampleOffset` of `CGSize(width: 28, height: 28)` in the renderer — it must comfortably exceed the maximum pixel offset the shader reaches (≈ 14 px). See Gotchas.
 5. Drive `tilt` from a `DragGesture` so the fringing follows the card's rotation.

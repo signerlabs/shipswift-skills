@@ -10,7 +10,7 @@ tags: [animation, metal, shader, glitter, sparkle, layerEffect, card, SwiftUI]
 
 Wraps any view in a field of animated glitter through SwiftUI's `layerEffect` Metal pipeline. A hashed grid seeds one potential sparkle per cell; each sparkle's twinkle phase is offset by a per-cell pseudo-random value and nudged by the `tilt` vector, so glints flicker as a card is rotated. Sparkles are mostly white with a faint rainbow tint, painted only over opaque source pixels. The single tunable knob is `density` — the number of grid cells per axis.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -45,7 +45,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  `layerEffect` — a hashed grid scatters twinkling rainbow-tinted points
 //  whose phase responds to a `tilt` vector (e.g. from a `DragGesture`).
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -161,7 +161,7 @@ private struct SWGlitterRenderer<Content: View>: View {
 //
 //  Paired with: SWGlitter.swift
 //  Entry point: `swGlitter` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -270,7 +270,7 @@ SWGlitter(tilt: tilt, density: 80) {
 ## Integration Checklist
 
 1. Copy `SWGlitter.swift` and `SWGlitter.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a card / photo / SF Symbol in `SWGlitter { ... }`; clip it to a `RoundedRectangle` for a glittery card.
 4. Tune `density` for the grain you want — `50` is a balanced default; raise toward `80–120` for fine glitter dust.
 5. Drive `tilt` from a `DragGesture` to make the glints react to touch.

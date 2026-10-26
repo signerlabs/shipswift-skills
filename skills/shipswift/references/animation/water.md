@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Image filter that wraps any source view in a rippling caustic distortion. Slow simplex-noise wave pushes UVs around while a 6-octave rotated caustic field paints sunlight-on-pool highlights across the surface. Applied with `.layerEffect`, so the source view is treated as the input.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -34,7 +34,7 @@ SWAnimation/SWMetal/
 //  6-octave rotated caustic field paints sunlight-on-pool highlights
 //  across the surface.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -372,7 +372,7 @@ private struct SliderRow: View {
 //
 //  Paired with: SWWater.swift
 //  Entry point: `swWater` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>

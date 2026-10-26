@@ -327,6 +327,6 @@ ScrollView {
 ## Integration Checklist
 
 - [ ] Add `SWMarkdownText.swift` to your project (single file, no dependencies)
-- [ ] Verify deployment target is iOS 17+ / macOS 14+ (uses `AttributedString` with `inlineOnlyPreservingWhitespace`)
+- [ ] Verify deployment target is iOS 18+ / macOS 15+ (uses `AttributedString` with `inlineOnlyPreservingWhitespace`)
 - [ ] For LLM chat UIs, wrap in `ScrollView` and feed the streaming response string directly
 - [ ] Customize `codeBackground` and `codeBorderColor` to match your app's theme

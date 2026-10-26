@@ -10,7 +10,7 @@ tags: [animation, metal, shader, foil, holographic, layerEffect, card, SwiftUI]
 
 Wraps any view in a holographic rainbow foil through SwiftUI's `layerEffect` Metal pipeline. Three crossing sine waves drive a rainbow ramp, a high-power sparkle term adds glints, and a `tilt` vector — typically fed from a `DragGesture` — rotates a fresnel-like highlight so the foil flares as a card is rotated. The effect samples the source layer and only paints where the source is opaque, so it reads as a foil finish laid over card art, a photo, or a bold SF Symbol.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -46,7 +46,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  term adds glints, and a `tilt` vector lets the caller rotate the
 //  highlight (e.g. from a `DragGesture`) for a "trading-card foil" feel.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -165,7 +165,7 @@ private struct SWFoilRenderer<Content: View>: View {
 //
 //  Paired with: SWFoil.swift
 //  Entry point: `swFoil` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -277,7 +277,7 @@ SWFoil(tilt: tilt, intensity: 1.0) {
 ## Integration Checklist
 
 1. Copy `SWFoil.swift` and `SWFoil.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a card / photo / SF Symbol in `SWFoil { ... }`; clip it to a `RoundedRectangle` for the trading-card look.
 4. To make it react to touch, hold a `@State var tilt: CGSize` and update it from a `DragGesture`, springing back to `.zero` on release.
 5. Lower `intensity` if the foil overpowers the underlying artwork.

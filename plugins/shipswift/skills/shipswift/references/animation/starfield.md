@@ -10,7 +10,7 @@ tags: [animation, metal, shader, starfield, background, parallax, SwiftUI]
 
 Full-screen twinkling starfield rendered through SwiftUI's `colorEffect` Metal pipeline. Each parallax layer is a hashed grid: a per-cell scalar hash decides which cells light up (`h > 1 - density`), a per-cell 2D hash places the star inside the cell, and a sin-driven term twinkles its brightness. Back layers are finer-grained and dimmer, sliding downward faster for a parallax effect.
 
-Requires iOS 17+ / macOS 14+ (uses SwiftUI `ShaderLibrary`, `Shader` / `ShaderFunction`, and Metal `stitchable` color effects).
+Requires iOS 18+ / macOS 15+ (uses SwiftUI `ShaderLibrary`, `Shader` / `ShaderFunction`, and Metal `stitchable` color effects).
 
 ## File Layout
 
@@ -248,7 +248,7 @@ SWStarfield(speed: 0.4, twinkleAmount: 0.15)
 ## Integration Checklist
 
 1. Copy `SWStarfield.swift` and `SWStarfield.metal` into your Xcode target (e.g. under `SWAnimation/SWMetal/`).
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Use it as a `ZStack` background and apply `.ignoresSafeArea()` if you want full-bleed.
 4. Use the parameter defaults first — they are tuned for full-screen on iPhone-class GPUs. Only raise `baseScale` × `layers` after measuring.
 5. If you adopt the optional `showsControls` demo flag, the gear button is registered as a native `ToolbarItem` and requires the call site to be inside a `NavigationStack`.

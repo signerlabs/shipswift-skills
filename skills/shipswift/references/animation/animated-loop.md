@@ -10,7 +10,7 @@ tags: [animation, metal, shader, rings, loop, splash, background, SwiftUI]
 
 Family of full-screen pulsing concentric-ring animations rendered through SwiftUI's `colorEffect` Metal pipeline. Four hand-tuned styles share the same per-line phase ramp, RGB-channel split, and additive composite logic; they only differ in the distance metric `d` and the pattern term `m`. The `Shape` style additionally exposes a 5-way geometric selector (circle / square / diamond pip / hexagon / star with petal count); the `Neon` style adds three angular-wobble parameters.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## File Layout
 
@@ -633,7 +633,7 @@ SWAnimatedLoop(
 ## Integration Checklist
 
 1. Copy `SWAnimatedLoop.swift` and `SWAnimatedLoop.metal` into your Xcode target.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Pick a style — `SWAnimatedLoop(style: .warp)` is a single line; each style ships with its author-tuned numeric defaults.
 4. For the Shape style, additionally pick a geometric `shape:`; for `.star`, optionally set `petals:`.
 5. For Neon, optionally tune `angularLobes` / `angularAmount` / `angularSpeed` to control the per-channel wobble.

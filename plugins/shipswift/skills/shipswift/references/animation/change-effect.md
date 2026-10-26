@@ -8,7 +8,7 @@ tags: [animation, micro-interaction, KeyframeAnimator, shake, jump, spray, hapti
 
 ## Overview
 
-Micro-interactions that play once whenever an `Equatable` trigger value changes: attach one modifier, bump the value, and the effect fires. Shake (decaying-amplitude wrong-input feedback), jump (squat/leap/land with squash & stretch), spin (one full turn), ping (staggered expanding rings), spray (a cone of tinted SF Symbol particles — the like-button classic), rise (floating "+1" text that stacks on rapid taps), one-shot shine (highlight sweep masked to the content), and a haptics bridge. Everything is built on modern iOS 17+ APIs — `KeyframeAnimator`, `PhaseAnimator`, `sensoryFeedback`, and `Canvas` + `TimelineView` for particles. All effects are additive: stack several on one view and drive them from the same trigger.
+Micro-interactions that play once whenever an `Equatable` trigger value changes: attach one modifier, bump the value, and the effect fires. Shake (decaying-amplitude wrong-input feedback), jump (squat/leap/land with squash & stretch), spin (one full turn), ping (staggered expanding rings), spray (a cone of tinted SF Symbol particles — the like-button classic), rise (floating "+1" text that stacks on rapid taps), one-shot shine (highlight sweep masked to the content), and a haptics bridge. Everything is built on modern SwiftUI APIs — `KeyframeAnimator`, `PhaseAnimator`, `sensoryFeedback`, and `Canvas` + `TimelineView` for particles. All effects are additive: stack several on one view and drive them from the same trigger.
 
 ## Source Code
 
@@ -452,7 +452,7 @@ view.swHaptic(.success, trigger: purchased)
 
 ## Integration Checklist
 
-- [ ] Add `SWChangeEffect.swift` to your project (iOS 17+ / macOS 14+)
+- [ ] Add `SWChangeEffect.swift` to your project (iOS 18+ / macOS 15+)
 - [ ] Drive effects from an `Equatable` state (a counter works best — every increment fires once)
 - [ ] Stack multiple effects on one view for compound feedback (spray + rise + haptic is the like-button trio)
 - [ ] Use `SWShine` as a wrapper (not a modifier) so the sweep clips to your content's silhouette
@@ -464,4 +464,4 @@ view.swHaptic(.success, trigger: purchased)
 - Rapid triggers are handled: spray/rise keep still-alive particles and append new ones, so button-mashing stacks floaters instead of resetting them.
 - `KeyframeAnimator` restarts from `initialValue` on every trigger change — effects always play the full arc, no mid-flight blending. Spin lands on 360° ≡ 0° so repeats look continuous.
 - Sound effects are intentionally not included (bundling audio breaks self-containment). Use `.swHaptic` / `.sensoryFeedback`, or add your own `AVAudioPlayer` alongside.
-- `sensoryFeedback` compiles on macOS 14+ but most Macs have no haptic hardware — the bridge is a no-op there.
+- `sensoryFeedback` compiles on macOS 15+ but most Macs have no haptic hardware — the bridge is a no-op there.

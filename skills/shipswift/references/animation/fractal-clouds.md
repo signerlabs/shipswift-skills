@@ -10,7 +10,7 @@ tags: [animation, metal, shader, clouds, background, fbm, SwiftUI]
 
 Full-screen drifting fractal clouds rendered through SwiftUI's `colorEffect` Metal pipeline. Two-pass FBM (5-octave value noise): the first pass perturbs the sample position for the second, producing soft cumulus-like swirls. Sky and cloud colors are mixed by the warped FBM, with an optional warm tint layered on top of the unwarped pass for ambient lift.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## File Layout
 
@@ -249,7 +249,7 @@ SWFractalClouds(speed: 0.5, coverage: 0.2)
 ## Integration Checklist
 
 1. Copy `SWFractalClouds.swift` and `SWFractalClouds.metal` into your Xcode target.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Use it as a `ZStack` background with `.ignoresSafeArea()` for full-bleed.
 4. Pick a sky / cloud / warm tint palette that matches your brand — defaults are a twilight palette; for daylight set `warmth: 0` and pick a brighter sky/cloud pair.
 5. Keep to one full-screen instance per visible screen.

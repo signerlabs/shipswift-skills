@@ -22,18 +22,18 @@ The skill costs almost nothing at rest — recipe docs are loaded only when your
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| **Animation** | 40 | Shimmer, Typewriter, Confetti, Mesh Gradient + 27 Metal shader backgrounds |
+| **Animation** | 43 | Shimmer, Typewriter, Confetti, Mesh Gradient + 27 Metal shader backgrounds |
 | **Chart** | 9 | Line, Bar, Area, Donut, Ring, Radar, Scatter, Heatmap, 3D Network Graph |
-| **Component** | 22 | Onboarding, Alert, Loading, Stepper, Search Bar, Wallet, KPI Card |
-| **Module** | 14 | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase) |
+| **Component** | 23 | Onboarding, Alert, Loading, Stepper, Search Bar, Wallet, KPI Card |
+| **Module** | 40 (30 Pro) | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase); Pro: full app screens, paywall templates |
 
 Every recipe is a self-contained doc: architecture overview + full source code + integration checklist + known pitfalls.
 
-**85 of 91 recipes are free** and bundled in the skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
+**85 of 115 recipes are free** and bundled in the skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
 
 ## ShipSwift Pro
 
-6 advanced module recipes require ShipSwift Pro ($89 one-time, lifetime access): **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
+30 module recipes require ShipSwift Pro ($89 one-time, lifetime access): 12 full app screens extracted from shipped apps, 12 paywall recipes (11 paywall designs plus the shared paywall kit), and 6 advanced modules: **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
 
 1. Purchase at [shipswift.app](https://shipswift.app) and get your API key.
 2. Connect the ShipSwift recipe server (MCP) with your key:
@@ -76,7 +76,7 @@ signerlabs/shipswift-skills/
 │   └── shipswift/
 │       ├── SKILL.md                  # The skill (hand-written)
 │       └── references/               # GENERATED — 85 free recipes + index.md
-│           ├── index.md              # Full catalog (91 recipes, Pro rows marked)
+│           ├── index.md              # Full catalog (115 recipes, Pro rows marked)
 │           ├── animation/            # 43 recipes
 │           ├── chart/                # 9 recipes
 │           ├── component/            # 23 recipes

@@ -13,7 +13,7 @@ Family of perspective dot-grid backgrounds rendered through SwiftUI's `colorEffe
 - **3D styles** (`wavy`, `mountains`, `ocean`, `standing`) sit dots on a wave-displaced ground plane below a configurable horizon line; they consume the `horizon`, `amplitude`, and `depthFade` parameters.
 - **Flat-grid styles** (`flow`, `plasma`, `snake`) tile dots across the screen without perspective; the `horizon` / `amplitude` / `depthFade` parameters are accepted (so the shader signature is unified) but ignored.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## File Layout
 
@@ -891,7 +891,7 @@ SWDots(style: .snake, gridDensity: 1.8, brightness: 0.7)
 ## Integration Checklist
 
 1. Copy `SWDots.swift` and all 7 `SWDots*.metal` files into your Xcode target.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Use it as a `ZStack` background with `.ignoresSafeArea()` for full-bleed.
 4. Pick a style and an accent color — for 3D styles also pick a `horizon` line that frames your foreground content.
 5. The 3D dot field only renders below the horizon line — place legible foreground content above the horizon or use strong contrast for legibility.

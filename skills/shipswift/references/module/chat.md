@@ -59,7 +59,7 @@ iOS App
 - None. The entire module uses only Apple system frameworks.
 
 ### Minimum Deployment Target
-- iOS 17.0 (uses `@Observable`, `onChange(of:)` new signature)
+- iOS 18.0+ (uses `@Observable`, `onChange(of:)` new signature)
 
 ## Implementation
 
@@ -1711,7 +1711,7 @@ public enum SWASRError: LocalizedError {
   }
   ```
 
-- [ ] **Set deployment target** to iOS 17.0 or later (required for `@Observable`).
+- [ ] **Set deployment target** to iOS 18.0 or later.
 
 ## Common Customizations
 

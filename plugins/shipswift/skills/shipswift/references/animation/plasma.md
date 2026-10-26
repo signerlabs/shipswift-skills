@@ -12,7 +12,7 @@ Family of full-color plasma backgrounds rendered through SwiftUI's `colorEffect`
 
 Also usable as a button-border ring by clipping the renderer to a `Circle()` or `Capsule()` and inset-ing a darker pill on top.
 
-All five entry points live in a single `SWPlasma.metal` because they share the same hash / value-noise / FBM / palette helpers and only differ in the final color-mixing step. Requires iOS 17+ / macOS 14+.
+All five entry points live in a single `SWPlasma.metal` because they share the same hash / value-noise / FBM / palette helpers and only differ in the final color-mixing step. Requires iOS 18+ / macOS 15+.
 
 ## File Layout
 
@@ -510,7 +510,7 @@ ZStack {
 ## Integration Checklist
 
 1. Copy `SWPlasma.swift` and `SWPlasma.metal` into your Xcode target.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Pick a style and let the palette default (`SWPlasma(style: .prism)` is enough).
 4. For button-ring usage, clip the renderer to a `Circle()` / `Capsule()` and inset a darker fill of the same shape on top.
 5. Keep to one instance per visible screen — Spectrum is the heaviest variant.

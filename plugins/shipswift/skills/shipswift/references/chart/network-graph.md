@@ -8,7 +8,7 @@ tags: [chart, graph, network, 3d, canvas, interactive, SwiftUI]
 
 ## Overview
 
-An interactive 3D network graph ("knowledge graph") rendered with a single SwiftUI `Canvas` per frame — colored dots linked by prerequisite edges, floating in a slowly spinning 3D funnel. All 3D math is hand-rolled (no SceneKit): a Y-rotation + tilt matrix and one-axis perspective projection. Nodes grow in bottom-up on appear, the graph auto-spins while idle, and users can drag to orbit, pinch to zoom, and tap a dot to highlight its full prerequisite lineage (BFS) while the camera tweens to face it. Ships with optional native-sheet chrome: a filter toolbar button opening a group list with Select All / Clear All, and a selection detail sheet (medium detent, background interaction enabled so the graph stays orbitable) with tappable "builds on" / "unlocks" rows and a back stack. Respects Reduce Motion. Requires iOS 17+ / macOS 14+.
+An interactive 3D network graph ("knowledge graph") rendered with a single SwiftUI `Canvas` per frame — colored dots linked by prerequisite edges, floating in a slowly spinning 3D funnel. All 3D math is hand-rolled (no SceneKit): a Y-rotation + tilt matrix and one-axis perspective projection. Nodes grow in bottom-up on appear, the graph auto-spins while idle, and users can drag to orbit, pinch to zoom, and tap a dot to highlight its full prerequisite lineage (BFS) while the camera tweens to face it. Ships with optional native-sheet chrome: a filter toolbar button opening a group list with Select All / Clear All, and a selection detail sheet (medium detent, background interaction enabled so the graph stays orbitable) with tappable "builds on" / "unlocks" rows and a back stack. Respects Reduce Motion. Requires iOS 18+ / macOS 15+.
 
 ## Source Code
 
@@ -46,7 +46,7 @@ An interactive 3D network graph ("knowledge graph") rendered with a single Swift
 //      total prerequisite count and tappable "builds on" / "unlocks" rows
 //      plus a back stack.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `TimelineView`, `Canvas`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `TimelineView`, `Canvas`,
 //  `MagnifyGesture`).
 //
 //  Usage:

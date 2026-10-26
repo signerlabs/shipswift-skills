@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background of animated Voronoi cells with anti-aliased smooth edges. Double-pass algorithm: first pass finds the closest cell center, second pass scans a 5×5 neighborhood to compute the minimum half-plane distance to all neighbours (the cell edge). 1–5 color step-discretized palette ramp, optional gap border between cells, optional radial inner-shadow glow.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -34,7 +34,7 @@ SWAnimation/SWMetal/
 //  step-discretized ramp, optional radial inner glow, and explicit gap
 //  border between cells.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -362,7 +362,7 @@ private struct SliderRow: View {
 //
 //  Paired with: SWVoronoi.swift
 //  Entry point: `swVoronoi` — invoked via SwiftUI `.colorEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>

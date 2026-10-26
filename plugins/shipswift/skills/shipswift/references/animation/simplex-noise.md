@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background built from two layered 2D simplex noises composed into a 0..1 shape value, then mapped across up to 10 base colors with `stepsPerColor`-controlled banded transitions, `softness`-driven smoothing, and `fwidth()` derivative-based anti-aliasing. The first and last colors wrap smoothly on either side of the gradient so the palette tiles seamlessly. 2D simplex noise implementation by Ashima Arts (public domain).
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -37,7 +37,7 @@ SWAnimation/SWMetal/
 //  colors with stepped smooth transitions and wrap-around on either
 //  side of the gradient.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, `colorEffect`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, `colorEffect`,
 //  Metal `stitchable`).
 //
 //  Usage:

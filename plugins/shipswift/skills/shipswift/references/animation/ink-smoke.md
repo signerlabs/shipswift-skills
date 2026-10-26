@@ -10,7 +10,7 @@ tags: [animation, metal, shader, ink, smoke, background, fbm, SwiftUI]
 
 Full-screen "ink in water" smoke field rendered through SwiftUI's `colorEffect` Metal pipeline. Three layers of value-noise FBM form the smoke body: `q` warps `p`, `r2` warps it again with `q` as the offset, and `f` is a final FBM sampled at the double-warped point. Four ink colors are mixed by `f`, `q.x`, and `r2.y`; a wispy highlight is added where `f` peaks, producing slow billowing blooms reminiscent of food coloring diffusing through water.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## File Layout
 
@@ -252,7 +252,7 @@ SWInkSmoke(scale: 3.0, highlight: 1.8)
 ## Integration Checklist
 
 1. Copy `SWInkSmoke.swift` and `SWInkSmoke.metal` into your Xcode target.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Use it as a `ZStack` background with `.ignoresSafeArea()` for full-bleed.
 4. Pick an ink palette that suits your brand mood — defaults are a twilight-purple "ink in water" look; for other moods recolor all five stops (`ink1` … `ink4` + `glow`) together.
 5. Keep to one full-screen instance per visible screen — this shader is the heaviest of the noise-field family.

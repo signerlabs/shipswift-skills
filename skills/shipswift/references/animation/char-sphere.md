@@ -10,7 +10,7 @@ tags: [animation, canvas, swiftui-canvas, sphere, SwiftUI]
 
 Sibling of Dot Sphere where each sphere point renders as a glyph instead of a filled circle. The `chars: [String]` array doubles as both a character palette and a length hint — each sphere point is assigned a random index into this array once at cloud-init time so the per-glyph character is stable across frames. Optional back-face culling skips the far hemisphere when readability matters more than depth. Font is SF Rounded; perspective scales the point size. Default palette is Tao Te Ching Chapter 1 (public-domain ancient Chinese text). Emoji works the same way — a `chars` array of regional-indicator flag emojis renders as a flag globe with zero bundled assets.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `TimelineView` + `Canvas`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `TimelineView` + `Canvas`).
 
 ## File Layout
 
@@ -44,7 +44,7 @@ SWAnimation/
 //    - One-axis perspective projection:
 //        screen = world · (focal / (focal + z))
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `TimelineView`, `Canvas`).
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `TimelineView`, `Canvas`).
 //
 //  Usage:
 //    // Default — 240 "道" glyphs, white/cyan/pink wave on black

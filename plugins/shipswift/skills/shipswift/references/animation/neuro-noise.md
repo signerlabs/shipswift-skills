@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background of glowing fluid lines and soft intersections, rendered through SwiftUI's `colorEffect`. 15 iterations of rotated UV + scale-doubling sine/cosine accumulation produce the organic web look. Front / mid / back 3-color palette + brightness, contrast, and pattern scale controls.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -36,7 +36,7 @@ SWAnimation/SWMetal/
 //  Algorithm: 15 iterations of rotated UV + scale-doubling sine/cosine
 //  accumulation.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -313,7 +313,7 @@ private struct SliderRow: View {
 //
 //  Paired with: SWNeuroNoise.swift
 //  Entry point: `swNeuroNoise` — invoked via SwiftUI `.colorEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>

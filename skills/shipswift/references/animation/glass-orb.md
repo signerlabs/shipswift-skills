@@ -14,7 +14,7 @@ The orb is one self-contained view — it does not wrap or refract any external 
 
 The gradient's hue cycles over time so the orb's color slowly flows. A `TimelineView(.animation)` drives a `hueRotation` applied to the gradient *before* the shader, so only the fill flows; the shader's Fresnel rim and specular hot-spot stay cool-white. The flow speed is controlled by `colorFlow` (degrees/second); set it to `0` for a static orb.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -58,7 +58,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  Inferno's Warping Loupe contributes the core refraction maths; the sphere
 //  cues (Fresnel rim, specular, dispersion, contact shadow) are added here.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, Metal `stitchable`).
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, Metal `stitchable`).
 //
 //  Usage:
 //    // Default gradient orb — draggable, with a slowly flowing hue.
@@ -392,7 +392,7 @@ private struct SWGlassOrbSliderRow: View {
 //
 //  Paired with: SWGlassOrb.swift
 //  Entry point: `swGlassOrb` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -539,7 +539,7 @@ SWGlassOrb(showsControls: true)
 ## Integration Checklist
 
 1. Copy `SWGlassOrb.swift` and `SWGlassOrb.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Drop in `SWGlassOrb()` for the default gradient orb, or pass your own `colors` for a custom fill. The orb supplies its own gradient — it does not wrap external content.
 4. The orb is draggable out of the box — the whole view (gradient + refraction + highlights) translates together via `.offset`, and the position commits when each drag ends.
 5. The `.layerEffect` argument order **must** match the Metal `swGlassOrb` signature exactly: `boundingRect, center, radius, magnification, refraction, edgeHighlight, dispersion`. `.boundingRect` is bound positionally; the centre is passed as the frame middle (`radius, radius`) and is not a stored property on the Swift view.

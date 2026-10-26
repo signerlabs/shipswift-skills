@@ -12,7 +12,7 @@ Image filter that wraps any view (best with bold SF Symbols / logos) in a flowin
 
 The Swift side adds a **breathing bloom glow built from blurred copies of the metal itself** (a wide soft outer halo + a tight near bloom, both screen-blended under the crisp logo), so the halo's color, direction and motion follow the bright regions inside the metal automatically. The shader uses the source's red channel as its edge mask — bold opaque shapes work cleanest.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -39,7 +39,7 @@ SWAnimation/SWMetal/
 //  effect uses the source's red channel as its edge mask, so vector
 //  shapes against transparent background work cleanest.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -440,7 +440,7 @@ private struct SliderRow: View {
 //
 //  Paired with: SWLiquidMetal.swift
 //  Entry point: `swLiquidMetal` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -943,7 +943,7 @@ NavigationStack {
 ## Integration Checklist
 
 1. Copy `SWLiquidMetal.swift` and `SWLiquidMetal.metal` into your Xcode target; the `.metal` file is compiled into the default `ShaderLibrary` automatically.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a bold, opaque silhouette (SF Symbol or logo) — the shader uses the source's red channel as its edge mask, so vector shapes against a transparent background work cleanest.
 4. The bloom glow only reads against a dark background; place the view over black (the demo mode pins a full-bleed dark canvas for you).
 5. Leave `maxSampleOffset: .zero` — the shader (including the Fresnel rim) is computed without sampling neighbouring pixels.

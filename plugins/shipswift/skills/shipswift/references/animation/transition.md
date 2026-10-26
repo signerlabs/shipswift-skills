@@ -1,14 +1,14 @@
 ---
 id: animation-transition
 title: View Transitions
-description: 16 modern view transitions on the iOS 17 Transition protocol — boing, skid, swoosh, flip, iris, wipe, blinds, clock, glare, dissolve, flicker, film exposure and more
+description: 16 modern view transitions on SwiftUI's Transition protocol — boing, skid, swoosh, flip, iris, wipe, blinds, clock, glare, dissolve, flicker, film exposure and more
 tier: free
-tags: [animation, transition, SwiftUI, iOS17, boing, skid, iris, wipe, dissolve, flicker]
+tags: [animation, transition, SwiftUI, iOS18, boing, skid, iris, wipe, dissolve, flicker]
 ---
 
 ## Overview
 
-A collection of 16 view transitions built on the modern iOS 17+ `Transition` protocol, usable via static dot-syntax exactly like the built-ins: `.transition(.swBoing)`. Covers filter effects (blur, film exposure, snapshot flash), 3D motion (flip, rotate3D, swoosh), elastic motion (boing, skid, angle-based move), and animatable mask reveals (iris, wipe, blinds, clock, glare, flicker, pixel dissolve). Every transition is a plain value type; mask reveals interpolate custom `Shape`/`Animatable` progress, so they respect whatever animation you trigger them with.
+A collection of 16 view transitions built on SwiftUI's modern `Transition` protocol, usable via static dot-syntax exactly like the built-ins: `.transition(.swBoing)`. Covers filter effects (blur, film exposure, snapshot flash), 3D motion (flip, rotate3D, swoosh), elastic motion (boing, skid, angle-based move), and animatable mask reveals (iris, wipe, blinds, clock, glare, flicker, pixel dissolve). Every transition is a plain value type; mask reveals interpolate custom `Shape`/`Animatable` progress, so they respect whatever animation you trigger them with.
 
 ## Source Code
 
@@ -684,7 +684,7 @@ Recommended animations per effect:
 
 ## Integration Checklist
 
-- [ ] Add `SWTransition.swift` to your project (iOS 17+ / macOS 14+)
+- [ ] Add `SWTransition.swift` to your project (iOS 18+ / macOS 15+)
 - [ ] Attach `.transition(.swXxx)` to a view inside an `if` / `ForEach`
 - [ ] Toggle the condition inside `withAnimation(...)` using the recommended curve for that effect
 - [ ] For mask reveals (iris/wipe/blinds/clock/dissolve/flicker), prefer `.linear` or `.easeInOut` — springs overshoot the progress (clamped, but timing feels off)
@@ -696,4 +696,4 @@ Recommended animations per effect:
 - The removal animation duration comes from the `withAnimation` that triggered it — a too-short animation truncates slower effects like film exposure.
 - Mask-reveal transitions draw within the view's bounds; inside `List` rows or `clipped()` containers they behave fine, but 3D/offset effects (boing, swoosh, move) need room to travel without being clipped by ancestors.
 - `SWSkewEffect` (used by swSkid) is a `GeometryEffect`; it composes with `offset` but not with `.rotation3DEffect` on the same layer — nest in a container if you need both.
-- All transitions are cross-platform SwiftUI (no UIKit); macOS 14+ works out of the box.
+- All transitions are cross-platform SwiftUI (no UIKit); macOS 15+ works out of the box.

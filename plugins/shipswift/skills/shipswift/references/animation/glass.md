@@ -14,7 +14,7 @@ The look is driven entirely by the shape's signed-distance field and its gradien
 
 This is a sibling of `glass-orb` (which renders a *sphere* with its own gradient fill); `SWGlass` instead glasses over *arbitrary* content with a flat sheet and a far larger control surface.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, Metal `stitchable`).
 
 ## File Layout
 
@@ -51,7 +51,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  gradient fill); `SWGlass` instead glasses over *arbitrary* content with a
 //  flat sheet and a far larger control surface.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, Metal `stitchable`).
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, Metal `stitchable`).
 //
 //  Usage:
 //    // Glass a circle over your own content.
@@ -525,7 +525,7 @@ private extension Color {
 //
 //  Paired with: SWGlass.swift
 //  Entry point: `swGlass` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -852,7 +852,7 @@ NavigationStack {
 ## Integration Checklist
 
 1. Copy `SWGlass.swift` and `SWGlass.metal` into your Xcode target; the `.metal` file is compiled into the default `ShaderLibrary` automatically.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Pass the content you want glassed in the trailing closure, or use the convenience initialiser (no closure) for the built-in sample background.
 4. The `maxSampleOffset` budget is computed for you from `blur` + `refraction` + the aberration split — heavier frost / refraction automatically reserves a larger tile budget.
 5. Use `cutout: true` when you want the glass isolated on transparency (e.g. a glass badge over your own layout) rather than composited over the supplied background.

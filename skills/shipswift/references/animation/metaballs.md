@@ -15,7 +15,7 @@ A `style` system selects between two looks:
 - **`.cluster`** (the original) — blobs meander on independent noise drifts; each blob picks its color by index from a 1–8 entry palette and the shape-weighted average produces the merged, gooey look.
 - **`.fountain`** — a big central ball with small balls streaming vertically. Roughly half the small balls rise from the bottom and converge into the big ball, the other half leave the big ball and spread upward out of frame. Because all shapes are summed before the threshold, a small ball melts into a teardrop bridge as it nears the big ball (the metaball "merge"), then separates again as it travels. A small ball's color is blended toward the big ball's the nearer it is to the centre, so it dissolves in like two liquids mixing rather than staying a distinct dot.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -53,7 +53,7 @@ In `.fountain`, each small ball is assigned a fixed phase offset and a coin flip
 //  overlap, over a flat background, via a SwiftUI Metal stitchable shader.
 //  No spherical lighting / rim / specular — straight 2D shape blending.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -436,7 +436,7 @@ private struct SliderRow: View {
 //  Paired with: SWMetaballs.swift
 //  Entry point: `swMetaballs` — invoked via SwiftUI `.colorEffect(...)`.
 //
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>

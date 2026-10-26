@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background of animated dots — each dot lives in its own Voronoi cell and orbits around the cell center, rotating individually. 3×3 cell scan finds the closest dot, and a 1–10 color palette is sampled with optional step quantization. Randomizers use hash functions so no noise texture is bound.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -33,7 +33,7 @@ SWAnimation/SWMetal/
 //  orbiting around its own Voronoi-cell center, mapped onto a 1–10
 //  color step-discretized gradient.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -355,7 +355,7 @@ private struct SliderRow: View {
 //
 //  Paired with: SWDotOrbit.swift
 //  Entry point: `swDotOrbit` — invoked via SwiftUI `.colorEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>

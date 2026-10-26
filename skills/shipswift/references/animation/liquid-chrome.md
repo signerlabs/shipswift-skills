@@ -10,7 +10,7 @@ tags: [animation, metal, shader, chrome, metal, background, SwiftUI]
 
 Full-screen animated polished-metal surface rendered through SwiftUI's `colorEffect` Metal pipeline. Three sequentially domain-warped value-noise samples produce a fluid metallic flow; the third sample drives a gamma-shaped chrome curve plus a high-power specular glint. Four user-tunable colors define the shadow / silver / highlight / accent ramp, and a baked-in cool spec tint always reads as polished metal.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## File Layout
 
@@ -262,7 +262,7 @@ SWLiquidChrome(specPower: 24, specStrength: 0.5)
 ## Integration Checklist
 
 1. Copy `SWLiquidChrome.swift` and `SWLiquidChrome.metal` into your Xcode target.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Use it as a `ZStack` background with `.ignoresSafeArea()` for full-bleed, or behind a card / hero element.
 4. Pick a shadow / silver / highlight / tint palette per the desired metal — cool blue (default), warm gold (`.brown` / `.yellow.opacity(0.4)` / `.white` / `.orange`), bronze, etc.
 5. Use higher `specPower` for sharper, more "mirror-like" reflections; lower for a softer brushed-metal look.

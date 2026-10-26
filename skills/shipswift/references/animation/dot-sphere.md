@@ -10,7 +10,7 @@ tags: [animation, canvas, swiftui-canvas, sphere, SwiftUI]
 
 Programmatic rotating 3D dot-sphere background. Each dot is placed via the classic spherical Fibonacci / Vogel-spiral distribution; an optional `morphAmount` (0...1) lerps each dot between a uniform random 3D cloud and its sphere position. One-axis perspective projection scales dot size with depth. Palette cross-fade is delayed per dot by its Y position so the color wave appears to wash up the sphere. Rendered with a single SwiftUI `Canvas` per frame (not N independent views) so 800+ dots stay at 60fps on iPhone.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `TimelineView` + `Canvas`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `TimelineView` + `Canvas`).
 
 ## File Layout
 
@@ -42,7 +42,7 @@ SWAnimation/
 //    - Color wave fade: each dot's transition is delayed by its
 //      vertical position so the palette appears to wash up the sphere.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `TimelineView`, `Canvas`).
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `TimelineView`, `Canvas`).
 //
 //  Usage:
 //    // Default — 800 dots, 5-color palette cycle on black

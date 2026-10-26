@@ -12,7 +12,7 @@ A fully procedural deep-space nebula rendered through SwiftUI's `colorEffect` Me
 
 It is the heaviest background in the library: cost is `volsteps × iterations` fractal folds per pixel per frame (272 at the defaults). Use exactly one full-screen instance.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -48,7 +48,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  fractal field — a deep-space nebula of drifting stars and dark voids,
 //  generated entirely in the shader with no texture or view sampling.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -241,7 +241,7 @@ private struct SWStarNestRenderer: View {
 //  Paired with: SWStarNest.swift
 //  Entry point: `swStarNest` — invoked via SwiftUI `.colorEffect(...)`.
 //
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -402,7 +402,7 @@ SWStarNest(volsteps: 12)
 ## Integration Checklist
 
 1. Copy `SWStarNest.swift` and `SWStarNest.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Use it as a `ZStack` background with `.ignoresSafeArea()` for full-bleed — it is a generative background, so there is no source view to wrap.
 4. Keep ONE full-screen instance. Never stack several or tile it into a grid (see Performance).
 5. On older devices, lower `volsteps` to 12–14 first if the frame rate drops; it has the biggest cost impact.

@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Image filter that wraps any source view in a halftone-dot grid. 5 styles in one component via `SWHalftoneStyle` enum: 4 dots variants (classic / gooey / holes / soft, square or hex grid) plus a CMYK 4-plate mode at the canonical 15° / 75° / 0° / 45° rotations. Applied with `.layerEffect`, so the source view (image / SF Symbol / view) is treated as the input. Preprocessing runs in-shader via multi-radius luma blur.
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -44,7 +44,7 @@ SWAnimation/SWMetal/
 //    • `.cmyk`        — 4-channel CMYK ink at 15° / 75° / 0° / 45°,
 //                       multiplicatively layered on a paper background
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -542,7 +542,7 @@ private struct SliderRow: View {
 //  `fwidth`-based smoothstep across cell edges.
 //
 //  Paired with: SWHalftone.swift
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>

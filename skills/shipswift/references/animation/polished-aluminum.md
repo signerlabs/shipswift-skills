@@ -10,7 +10,7 @@ tags: [animation, metal, shader, metal-finish, aluminum, iridescent, layerEffect
 
 Wraps any view in a polished-aluminum finish through SwiftUI's `layerEffect` Metal pipeline, in three layered steps: (1) a tilt-shifted cyan → silver → purple vertical gradient with brushed-metal value noise forms the metal base; (2) a diagonal 45-degree rainbow band sweeps across via screen blending for iridescence; (3) a tilt-tracking specular hotspot finishes the lit-metal look. Feed `tilt` from a `DragGesture` to rotate the metal — the finish reads as a still, reflective surface that comes alive on drag.
 
-Requires iOS 17+ / macOS 14+.
+Requires iOS 18+ / macOS 15+.
 
 ## Attribution
 
@@ -46,7 +46,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  gradient, a diagonal rainbow iridescence band, and a tilt-tracking
 //  specular hotspot. Feed `tilt` from a `DragGesture` to rotate the metal.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
@@ -173,7 +173,7 @@ private struct SWPolishedAluminumRenderer<Content: View>: View {
 //
 //  Paired with: SWPolishedAluminum.swift
 //  Entry point: `swPolishedAluminum` — invoked via SwiftUI `.layerEffect(...)`.
-//  Requires iOS 17+ / macOS 14+.
+//  Requires iOS 18+ / macOS 15+.
 //
 
 #include <metal_stdlib>
@@ -383,7 +383,7 @@ SWPolishedAluminum(tilt: tilt, intensity: 0.85) { cardArtwork }
 ## Integration Checklist
 
 1. Copy `SWPolishedAluminum.swift` and `SWPolishedAluminum.metal` into your Xcode target, keeping the MIT attribution header on both files.
-2. Confirm the deployment target is iOS 17+ / macOS 14+.
+2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a card / photo / SF Symbol in `SWPolishedAluminum { ... }`; clip it to a `RoundedRectangle`.
 4. The default `intensity` of `0.85` makes a strongly metallic surface; drop toward `0.5–0.6` if you want the underlying artwork to remain visible through the finish.
 5. Drive `tilt` from a `DragGesture` so the gradient, rainbow band, and specular hotspot all rotate together.

@@ -8,7 +8,7 @@ tags: [animation, transition, particles, poof, pop, anvil, Canvas, SwiftUI]
 
 ## Overview
 
-Three view transitions where a Canvas-rendered particle burst sells the effect: `swPoof` makes the view vanish (or appear) in a cartoon puff of smoke, `swPop` pops it in with a ripple ring and a flurry of colored dots, and `swAnvil` slams it down from above with dust kicking out on impact. The burst engine is self-contained in this file — particles run on their own `TimelineView` clock with analytic physics (position, gravity, growth, fade evaluated per frame), independent of the transition's interpolation. Built on the iOS 17+ `Transition` protocol.
+Three view transitions where a Canvas-rendered particle burst sells the effect: `swPoof` makes the view vanish (or appear) in a cartoon puff of smoke, `swPop` pops it in with a ripple ring and a flurry of colored dots, and `swAnvil` slams it down from above with dust kicking out on impact. The burst engine is self-contained in this file — particles run on their own `TimelineView` clock with analytic physics (position, gravity, growth, fade evaluated per frame), independent of the transition's interpolation. Built on SwiftUI's `Transition` protocol.
 
 ## Source Code
 
@@ -370,7 +370,7 @@ Recommended animations:
 
 ## Integration Checklist
 
-- [ ] Add `SWParticleTransition.swift` to your project (iOS 17+ / macOS 14+)
+- [ ] Add `SWParticleTransition.swift` to your project (iOS 18+ / macOS 15+)
 - [ ] Attach `.transition(.swPoof / .swPop / .swAnvil)` to a view inside an `if`
 - [ ] Toggle inside `withAnimation(...)` using the recommended curve — anvil specifically needs a fast ease-in so touchdown matches the dust burst
 - [ ] Optionally add `.sensoryFeedback(.impact(weight: .heavy), trigger:)` on the toggling state for anvil

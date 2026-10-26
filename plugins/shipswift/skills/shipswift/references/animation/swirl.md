@@ -10,7 +10,7 @@ tags: [animation, metal, shader, SwiftUI]
 
 Programmatic background of animated bands of color twisting and bending into spirals, arcs, and flowing circular patterns. Polar-coordinate angle is multiplied by `bandCount` and spun by time; a `pow(length, -twist)` radial term bends straight sectoral bands into spirals; folded to a triangular wave so each band gets two symmetric edges; optionally distorted with 2D simplex noise; finally mapped across 1...10 palette colors with `fwidth()`-based anti-aliased band edges. 2D simplex noise by Ashima Arts (public domain).
 
-Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
+Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary` / `Shader` / Metal `stitchable`).
 
 ## File Layout
 
@@ -39,7 +39,7 @@ SWAnimation/SWMetal/
 //  noise; finally mapped across 1...10 palette colors with
 //  `fwidth()`-based anti-aliased band edges.
 //
-//  Requires iOS 17+ / macOS 14+ (SwiftUI `ShaderLibrary`, `colorEffect`,
+//  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`, `colorEffect`,
 //  Metal `stitchable`).
 //
 //  Usage:
