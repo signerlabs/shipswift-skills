@@ -383,7 +383,7 @@ private struct SWGlassControlled<Content: View>: View {
         }
         .sheet(isPresented: $showSheet) {
             SWGlassControlsSheet(config: $config)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
     }

@@ -47,8 +47,10 @@ struct SWOnboardingView: View {
                     .padding(.horizontal)
                 }
             }
+            #if os(iOS)
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
+            #endif
 
             // Bottom confirm button
             Button {
@@ -106,11 +108,16 @@ enum OnboardingPage: CaseIterable {
     var description: String {
         switch self {
         case .shipFast: "Skills structured for AI models — Claude, Cursor, Windsurf get production-grade context instantly."
-        case .components: "Auth, subscriptions, camera, AI chat, paywall — every skill battle-tested in real App Store apps."
+        case .components: "Auth, camera, AI chat, in-app purchase — every skill battle-tested in real App Store apps."
         case .modular: "Connect via MCP with one command. No downloads, no setup, no dependencies to manage."
         case .launch: "Stop rebuilding auth and payments from scratch. Focus on what makes your app unique."
         }
     }
+}
+
+// MARK: - Preview
+#Preview("Onboarding") {
+    SWOnboardingView(onComplete: { print("Done") })
 }
 ```
 
