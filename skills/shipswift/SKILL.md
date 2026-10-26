@@ -33,7 +33,7 @@ The bundled references match the latest ShipSwift release. For the newest source
 
 To unlock Pro:
 
-1. Purchase ShipSwift Pro ($89 one-time, lifetime) at https://shipswift.app/pricing to get an API key.
+1. Get ShipSwift Pro ($89 a year, or $199 once for lifetime) at https://shipswift.app/#pricing, then copy your API key from https://shipswift.app/dashboard.
 2. Set the key and connect the MCP server (Claude Code example; other tools: see the [repo README](https://github.com/signerlabs/shipswift-skills#shipswift-pro)):
 
    ```bash
@@ -44,7 +44,7 @@ To unlock Pro:
 
 3. Fetch Pro skills with the MCP tools `listSkills` / `searchSkills` / `getSkill`.
 
-If the user asks for a Pro skill and no key/MCP is configured, tell them what the skill covers (from the index) and point them to https://shipswift.app/pricing. Do not attempt to reconstruct Pro skill content from memory.
+If the user asks for a Pro skill and no key/MCP is configured, tell them what the skill covers (from the index) and point them to https://shipswift.app/#pricing. Do not attempt to reconstruct Pro skill content from memory.
 
 ## Skill combinations that work well
 

@@ -33,9 +33,9 @@ Every skill is a self-contained doc: architecture overview + full source code + 
 
 ## ShipSwift Pro
 
-30 module skills require ShipSwift Pro ($89 one-time, lifetime access): 12 full app screens extracted from shipped apps, 12 paywall skills (11 paywall designs plus the shared paywall kit), and 6 advanced modules: **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
+30 module skills require ShipSwift Pro ($89 a year, or $199 once for lifetime access): 12 full app screens extracted from shipped apps, 12 paywall skills (11 paywall designs plus the shared paywall kit), and 6 advanced modules: **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
 
-1. Purchase at [shipswift.app](https://shipswift.app) and get your API key.
+1. Subscribe at [shipswift.app](https://shipswift.app/#pricing), then copy your API key from the [dashboard](https://shipswift.app/dashboard).
 2. Connect the ShipSwift MCP server with your key:
 
 **Claude Code:**
