@@ -25,15 +25,15 @@ The Agent Skill costs almost nothing at rest — skill docs are loaded only when
 | **Animation** | 43 | Shimmer, Typewriter, Confetti, Mesh Gradient + 27 Metal shader backgrounds |
 | **Chart** | 9 | Line, Bar, Area, Donut, Ring, Radar, Scatter, Heatmap, 3D Network Graph |
 | **Component** | 23 | Onboarding, Alert, Loading, Stepper, Search Bar, Wallet, KPI Card |
-| **Module** | 40 (30 Pro) | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase); Pro: full app screens, paywall templates |
+| **Module** | 41 (31 Pro) | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase); Pro: full app screens, paywall templates |
 
 Every skill is a self-contained doc: architecture overview + full source code + integration checklist + known pitfalls.
 
-**85 of 115 skills are free** and bundled in the Agent Skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
+**85 of 116 skills are free** and bundled in the Agent Skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
 
 ## ShipSwift Pro
 
-30 module skills require ShipSwift Pro ($89 a year, or $199 once for lifetime access): 12 full app screens extracted from shipped apps, 12 paywall skills (11 paywall designs plus the shared paywall kit), and 6 advanced modules: **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
+31 module skills require ShipSwift Pro ($89 a year, or $199 once for lifetime access): 13 full app screens extracted from shipped apps, 12 paywall skills (11 paywall designs plus the shared paywall kit), and 6 advanced modules: **StoreKit 2 Subscriptions**, **RevenueCat Subscriptions**, **TikTok Ad Attribution**, **TikTok Attribution with RevenueCat**, **Subject Lifting**, and **Export & Share**.
 
 1. Subscribe at [shipswift.app](https://shipswift.app/#pricing), then copy your API key from the [dashboard](https://shipswift.app/dashboard).
 2. Connect the ShipSwift MCP server with your key:
@@ -76,7 +76,7 @@ signerlabs/shipswift-skills/
 │   └── shipswift/
 │       ├── SKILL.md                  # The skill (hand-written)
 │       └── references/               # GENERATED — 85 free skills + index.md
-│           ├── index.md              # Full catalog (115 skills, Pro rows marked)
+│           ├── index.md              # Full catalog (116 skills, Pro rows marked)
 │           ├── animation/            # 43 skills
 │           ├── chart/                # 9 skills
 │           ├── component/            # 23 skills

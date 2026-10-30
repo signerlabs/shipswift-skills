@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project Overview
-ShipSwift Skills + Plugin cross-platform distribution (public repo: signerlabs/shipswift-skills). Skills-first strategy: 85 free skills are bundled inside the `shipswift` Agent Skill (progressive disclosure — SKILL.md + references/); the 30 Pro skills are delivered via the MCP server with an API key.
+ShipSwift Skills + Plugin cross-platform distribution (public repo: signerlabs/shipswift-skills). Skills-first strategy: 85 free skills are bundled inside the `shipswift` Agent Skill (progressive disclosure — SKILL.md + references/); the 31 Pro skills are delivered via the MCP server with an API key.
 
 ## Development Constraints
 - Public repo — all comments and docs in English

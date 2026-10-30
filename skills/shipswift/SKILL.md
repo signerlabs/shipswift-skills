@@ -1,6 +1,6 @@
 ---
 name: shipswift
-description: ShipSwift skill library — 115 production-ready SwiftUI skills for iOS/macOS covering animations (view transitions, particle transitions, change effects, shimmer, confetti, typewriter, 27 Metal shaders), charts (line, bar, donut, radar, heatmap, 3D network graph), UI components (onboarding, alert, stepper, search bar, cached remote images) and full-stack modules (Cognito/Supabase auth, camera, chat, StoreKit subscriptions, CDK infra). Use when building SwiftUI features, adding animations/charts/components, or when the user mentions ShipSwift.
+description: ShipSwift skill library — 116 production-ready SwiftUI skills for iOS/macOS covering animations (view transitions, particle transitions, change effects, shimmer, confetti, typewriter, 27 Metal shaders), charts (line, bar, donut, radar, heatmap, 3D network graph), UI components (onboarding, alert, stepper, search bar, cached remote images) and full-stack modules (Cognito/Supabase auth, camera, chat, StoreKit subscriptions, CDK infra). Use when building SwiftUI features, adding animations/charts/components, or when the user mentions ShipSwift.
 ---
 
 # ShipSwift Skills
@@ -9,7 +9,7 @@ Production-ready SwiftUI implementations you can copy into iOS/macOS apps. Each 
 
 ## How to use
 
-1. **Find a skill**: read [references/index.md](references/index.md) — the full catalog (115 skills across animation / chart / component / module) with one-line descriptions.
+1. **Find a skill**: read [references/index.md](references/index.md) — the full catalog (116 skills across animation / chart / component / module) with one-line descriptions.
 2. **Read the skill**: free skills are bundled locally at `references/<category>/<id>.md`. Always read the full skill file before writing code — do not improvise from the index line alone.
 3. **Integrate**: follow the skill's integration checklist. Keep the `SW` type prefix and `.sw` view-modifier naming conventions unless the user asks otherwise.
 
@@ -29,7 +29,7 @@ The bundled references match the latest ShipSwift release. For the newest source
 
 ## Pro skills
 
-30 skills are Pro tier, marked **Pro** in the index: 12 full app screens, 12 paywall skills (`paywall-kit` plus 11 paywall designs) and 6 advanced modules (`subscription-storekit`, `subscription-revenuecat`, `tiktok-tracking`, `tiktok-tracking-revenuecat`, `subject-lifting`, `export-share`). Their full docs (architecture, integration checklist, pitfalls) are delivered through the ShipSwift MCP server and are not bundled here.
+31 skills are Pro tier, marked **Pro** in the index: 13 full app screens, 12 paywall skills (`paywall-kit` plus 11 paywall designs) and 6 advanced modules (`subscription-storekit`, `subscription-revenuecat`, `tiktok-tracking`, `tiktok-tracking-revenuecat`, `subject-lifting`, `export-share`). Their full docs (architecture, integration checklist, pitfalls) are delivered through the ShipSwift MCP server and are not bundled here.
 
 To unlock Pro:
 
