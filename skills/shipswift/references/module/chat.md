@@ -58,6 +58,9 @@ iOS App
 ### Third-Party
 - None. The entire module uses only Apple system frameworks.
 
+### Assets
+- An `AccentColor` color set in your asset catalog (Xcode's default app template has one). `SWChatInputView` uses `.stroke(.accent, ...)`, which is Xcode's generated asset symbol for it, not a SwiftUI API.
+
 ### Minimum Deployment Target
 - iOS 18.0+ (uses `@Observable`, `onChange(of:)` new signature)
 
@@ -69,7 +72,7 @@ The all-in-one chat component. Combines `SWMessageList`, `SWMessageBubble`, and 
 
 ```swift
 //
-//  SWChatView.swift
+//  SWChatView+iOS.swift
 //  ShipSwift
 //
 //  All-in-one chat view that combines SWMessageList, SWMessageBubble,
@@ -128,6 +131,8 @@ The all-in-one chat component. Combines `SWMessageList`, `SWMessageBubble`, and 
 //
 
 import SwiftUI
+
+private let swChatBubbleBackground = Color(UIColor.systemGray6)
 
 // MARK: - Chat Message Model
 
@@ -273,7 +278,7 @@ public struct SWChatView<BubbleContent: View>: View {
     private func defaultBubble(for message: SWChatMessage) -> some View {
         Text(message.content)
             .padding(12)
-            .background(message.isUser ? Color.accentColor : Color(UIColor.systemGray6))
+            .background(message.isUser ? Color.accentColor : swChatBubbleBackground)
             .foregroundStyle(message.isUser ? .white : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -336,7 +341,7 @@ Chat text input bar with optional voice recognition (ASR). Provides a text field
 
 ```swift
 //
-//  SWChatInputView.swift
+//  SWChatInputView+iOS.swift
 //  ShipSwift
 //
 //  Chat text input bar with optional voice recognition (ASR).
@@ -489,6 +494,11 @@ public struct SWChatInputView: View {
         )
         .padding(.horizontal)
         .padding(.vertical, 8)
+        .onDisappear {
+            // Release the microphone and the ASR connection when the input bar leaves the screen
+            asrService?.cancelRecording()
+            asrState = .idle
+        }
     }
 
     // MARK: - Input Area
@@ -499,6 +509,7 @@ public struct SWChatInputView: View {
         case .idle:
             // Normal text input
             TextField(placeHolderText, text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
                 .lineLimit(minLines...5)
                 .focused($isFocused)
                 .disabled(isDisabled)
@@ -589,6 +600,9 @@ public struct SWChatInputView: View {
         text = "" // Clear previous text
         asrState = .recording
 
+        // Close the previous session's connection before starting a new one
+        asrService?.cancelRecording()
+
         let service = SWVolcEngineASRService(config: asrConfig)
         asrService = service
 
@@ -611,6 +625,10 @@ public struct SWChatInputView: View {
         Task {
             do {
                 try await service.startRecording()
+                // The user may have tapped stop while the connection was still opening
+                if asrState != .recording {
+                    await service.stopRecording()
+                }
             } catch {
                 swDebugLog("[SWChatInput] Failed to start recording: \(error.localizedDescription)")
                 asrState = .idle
@@ -770,12 +788,11 @@ Advantages over the old flip technique:
 //        }
 //    }
 //
-//    // 2. Message model must conform to Identifiable
-//    struct ChatMessage: Identifiable {
-//        let id = UUID()
-//        let content: String
-//        let isUser: Bool
-//    }
+//    // 2. Any Identifiable message model works, e.g. SWChatMessage
+//    //    from SWChatView+iOS.swift
+//    let messages: [SWChatMessage] = [
+//        SWChatMessage(content: "Hello!", isUser: true)
+//    ]
 //
 //    // 3. SWMessageBubble aligns user messages to trailing, others to leading
 //    SWMessageBubble(isFromUser: true) {
@@ -800,7 +817,8 @@ private let swMessageBubbleBackground = Color(UIColor.systemGray6)
 /// LazyVStack causes infinite layout calculation loops during frequent updates, CPU 100%.
 ///
 /// ### 2. Throttled auto-scroll keeps the latest message visible
-/// When `messages.count` changes, the list scrolls to the bottom anchor.
+/// When `messages.count` changes, or the newest message grows (streaming),
+/// the list scrolls to the bottom anchor.
 /// Scrolling is throttled (max once per 400ms) with a 450ms trailing
 /// guarantee, preventing jank during fast streaming updates.
 ///
@@ -846,6 +864,13 @@ public struct SWMessageList<Message: Identifiable, Content: View>: View {
             List {
                 ForEach(messages) { message in
                     content(message)
+                        // Follow the newest message while it grows (streaming responses
+                        // replace its content in place, so messages.count does not change)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+                            if message.id == messages.last?.id {
+                                throttleScroll(proxy: proxy)
+                            }
+                        }
                         .id(message.id)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -952,7 +977,7 @@ private struct PreviewMessage: Identifiable {
         SWMessageBubble(isFromUser: message.isUser) {
             Text(message.content)
                 .padding(12)
-                .background(message.isUser ? Color.accentColor : Color(UIColor.systemGray6))
+                .background(message.isUser ? Color.accentColor : swMessageBubbleBackground)
                 .foregroundStyle(message.isUser ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
         }
@@ -960,13 +985,13 @@ private struct PreviewMessage: Identifiable {
 }
 ```
 
-### File 4: SWVolcEngineASRService.swift
+### File 4: SWVolcEngineASRService+iOS.swift
 
 VolcEngine automatic speech recognition service client. Streams audio over WebSocket to ByteDance's VolcEngine ASR API, providing real-time and final transcription callbacks.
 
 ```swift
 //
-//  SWVolcEngineASRService.swift
+//  SWVolcEngineASRService+iOS.swift
 //  ShipSwift
 //
 //  VolcEngine automatic speech recognition service client.
@@ -1086,6 +1111,8 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
     private var receiveBuffer = Data()
     private let queue = DispatchQueue(label: "com.shipswift.asr.websocket")
     private var audioConverter: AVAudioConverter?
+    /// Whether the end of the stream has been reported (main thread only)
+    @ObservationIgnored private var hasFinishedStream = false
     private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
 
     // MARK: - Initialization
@@ -1107,6 +1134,7 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
 
         transcribedText = ""
         error = nil
+        hasFinishedStream = false
 
         try await connectWebSocket()
         try sendFullClientRequest()
@@ -1124,8 +1152,11 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
         sendEndOfAudio()
     }
 
-    /// Cancel recording
+    /// Cancel recording (discards results; no further callbacks are delivered)
     public func cancelRecording() {
+        onTranscriptionUpdate = nil
+        onTranscriptionComplete = nil
+        onError = nil
         isRecording = false
         stopAudioEngine()
         disconnectWebSocket()
@@ -1231,11 +1262,7 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
             guard let self else { return }
 
             if error != nil {
-                DispatchQueue.main.async {
-                    if !self.transcribedText.isEmpty {
-                        self.onTranscriptionComplete?(self.transcribedText)
-                    }
-                }
+                self.finishStream()
                 return
             }
 
@@ -1246,11 +1273,7 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
 
             if isComplete {
                 self.isConnected = false
-                DispatchQueue.main.async {
-                    if !self.transcribedText.isEmpty {
-                        self.onTranscriptionComplete?(self.transcribedText)
-                    }
-                }
+                self.finishStream()
             } else {
                 self.startReceivingFrames()
             }
@@ -1306,11 +1329,7 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
                 handleServerResponse(payload)
             case 0x08:
                 isConnected = false
-                DispatchQueue.main.async {
-                    if !self.transcribedText.isEmpty {
-                        self.onTranscriptionComplete?(self.transcribedText)
-                    }
-                }
+                finishStream()
             case 0x09:
                 sendPong(payload)
             default:
@@ -1320,6 +1339,21 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
 
         if offset > 0 {
             receiveBuffer.removeFirst(offset)
+        }
+    }
+
+    /// Report the end of the stream once, even when nothing was recognized,
+    /// so the caller can always leave its "transcribing" state
+    private func finishStream() {
+        DispatchQueue.main.async {
+            guard !self.hasFinishedStream else { return }
+            self.hasFinishedStream = true
+            // The connection is gone: if it ended while still recording, release the microphone
+            if self.isRecording {
+                self.isRecording = false
+                self.stopAudioEngine()
+            }
+            self.onTranscriptionComplete?(self.transcribedText)
         }
     }
 
@@ -1560,10 +1594,18 @@ public final class SWVolcEngineASRService: @unchecked Sendable {
     }
 
     private func stopAudioEngine() {
+        let wasRunning = audioEngine != nil
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine?.stop()
         audioEngine = nil
         audioConverter = nil
+
+        #if os(iOS)
+        // Hand the audio session back so audio from other apps (e.g. music) can resume
+        if wasRunning {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
+        #endif
     }
 
     private func convertBuffer(_ buffer: AVAudioPCMBuffer) -> Data? {
@@ -1671,6 +1713,57 @@ public enum SWASRError: LocalizedError {
 }
 ```
 
+### File 5: SWDebugLog.swift
+
+Debug-only logging used by `SWChatInputView`. This is ShipSwift's `SWUtil/SWDebugLog.swift`, unchanged — **skip it if your project already has ShipSwift's `SWUtil` (or you installed paywall-kit, which ships the same file)**. Do not write your own `swDebugLog`: a second definition with the same name collides with this one.
+
+```swift
+//
+//  SWDebugLog.swift
+//  ShipSwift
+//
+//  Debug logging utility functions that only print in DEBUG mode, with zero overhead
+//  in Release builds (#if DEBUG + @inline(__always)). Provides two overloads:
+//  simple print and print with file name/line number.
+//
+//  Usage:
+//    // Overload 1 — multi-argument print (similar to print, supports custom separator and terminator):
+//    swDebugLog("UserID:", userId, "Status:", status)
+//    swDebugLog("A", "B", "C", separator: "-")
+//    // Output: A-B-C
+//
+//    // Overload 2 — print with file name and line number (automatically captures call site):
+//    swDebugLog("Network request failed")
+//    // Output: [ViewModel.swift:42] Network request failed
+//
+//    // In Release mode, all swDebugLog calls are completely removed by the compiler with no performance impact.
+//
+//  Created by Wei Zhong on 3/1/26.
+//
+
+import Foundation
+
+// MARK: - Debug Logging
+
+/// Prints log messages in Debug mode, completely removed in Release (zero overhead)
+@inline(__always)
+nonisolated func swDebugLog(_ items: Any..., separator: String = " ", terminator: String = "\n") {
+    #if DEBUG
+    let output = items.map { "\($0)" }.joined(separator: separator)
+    print(output, terminator: terminator)
+    #endif
+}
+
+/// Prints log messages with file and line info in Debug mode
+@inline(__always)
+nonisolated func swDebugLog(_ message: @autoclosure () -> String, file: String = #file, line: Int = #line) {
+    #if DEBUG
+    let filename = (file as NSString).lastPathComponent
+    print("[\(filename):\(line)] \(message())")
+    #endif
+}
+```
+
 ## Integration Checklist
 
 - [ ] **Add microphone permission** to `Info.plist`:
@@ -1686,20 +1779,16 @@ public enum SWASRError: LocalizedError {
   3. Create an application to get `appId` and `accessToken`
   4. Choose the correct `cluster` for your region (default: `volcengine_streaming_common`)
 
-- [ ] **Add all 4 files** to your Xcode project:
+  The `accessToken` you pass to `SWASRConfig` ships inside your app. Don't hard-code a long-lived token in source control; prefer fetching it from your backend at runtime so you can rotate it.
+
+- [ ] **Add the files** to your Xcode project:
   - `SWChatView+iOS.swift`
   - `SWChatInputView+iOS.swift`
   - `SWMessageList+iOS.swift`
-  - `SWVolcEngineASRService.swift`
+  - `SWVolcEngineASRService+iOS.swift`
+  - `SWDebugLog.swift` — skip it if your project already has ShipSwift's `SWUtil` or the paywall-kit skill
 
-- [ ] **Add the `swDebugLog` utility** (used by `SWChatInputView` for debug logging):
-  ```swift
-  func swDebugLog(_ message: String) {
-      #if DEBUG
-      print(message)
-      #endif
-  }
-  ```
+  If your app also builds for macOS, limit the four `+iOS` files to iOS in Build Phases > Compile Sources.
 
 - [ ] **Connect to your AI backend** in the `onSend` callback:
   ```swift
@@ -1742,7 +1831,7 @@ try await service.startRecording()
 await service.stopRecording()
 ```
 
-To use Apple's built-in Speech framework instead:
+To use Apple's built-in Speech framework instead (also add `NSSpeechRecognitionUsageDescription` to `Info.plist` and call `SFSpeechRecognizer.requestAuthorization` before the first recording):
 
 ```swift
 import Speech
@@ -1863,7 +1952,7 @@ SWChatView(messages: $messages) { text in
 }
 ```
 
-> **Note:** `SWChatMessage` uses `let` properties for immutability. To support streaming updates, replace the entire message in the array as shown above. `SWMessageList` uses throttled auto-scroll to handle frequent updates without CPU spikes (unlike `ScrollView` + `LazyVStack`).
+> **Note:** `SWChatMessage` uses `let` properties for immutability. To support streaming updates, replace the entire message in the array as shown above. `SWMessageList` follows the growing last message with throttled auto-scroll, so frequent updates cause no CPU spikes or jank (unlike `ScrollView` + `LazyVStack`).
 
 ### Change ASR language
 
@@ -1899,7 +1988,7 @@ iOS requires runtime permission for microphone access. `SWVolcEngineASRService.s
 
 ### 3. Audio session configuration on iOS
 
-The ASR service sets the audio session to `.playAndRecord` with `.defaultToSpeaker` and `.allowBluetoothA2DP`. If your app uses other audio (e.g., media playback), you may need to restore the audio session category after recording stops:
+The ASR service sets the audio session to `.playAndRecord` with `.defaultToSpeaker` and `.allowBluetoothA2DP`, and deactivates it (with `.notifyOthersOnDeactivation`, so music from other apps resumes) when recording stops or is cancelled. If your app plays its own audio (e.g., media playback or text-to-speech), set the category you need again before playing:
 
 ```swift
 // After stopRecording()
@@ -1924,4 +2013,4 @@ The auto-scroll uses a 400ms leading throttle with a 450ms trailing guarantee. D
 
 ### 8. ASR service lifecycle
 
-Each recording session creates a new `SWVolcEngineASRService` instance and a new WebSocket connection. The service is not designed to be reused across multiple recording sessions. This is by design -- each session needs a fresh connection with a unique request ID.
+Each recording session creates a new `SWVolcEngineASRService` instance and a new WebSocket connection. The service is not designed to be reused across multiple recording sessions. This is by design -- each session needs a fresh connection with a unique request ID. `SWChatInputView` cancels the previous session before starting a new one, and cancels a running session when the input bar leaves the screen, so the microphone and the connection are always released. `onTranscriptionComplete` is called once when the stream ends, even if nothing was recognized (with an empty string), and the microphone is released if the connection drops while still recording; after `cancelRecording()` no further callbacks are delivered.

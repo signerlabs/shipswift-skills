@@ -37,7 +37,7 @@ struct SWPoofTransition: Transition {
 private struct SWPoofFadeModifier: ViewModifier, Animatable {
     var progress: CGFloat
 
-    var animatableData: CGFloat {
+    nonisolated var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
@@ -247,6 +247,14 @@ private struct SWBurstEmitterView: View {
             guard inserting || (removing && firesOnRemoval) else { return }
             fire()
         }
+        .task(id: startTime) {
+            // Pause the frame clock once the burst has played out.
+            guard startTime != nil else { return }
+            try? await Task.sleep(for: .seconds(duration + 0.05))
+            guard !Task.isCancelled else { return }
+            startTime = nil
+            particles = []
+        }
     }
 
     private func fire() {
@@ -379,7 +387,7 @@ Recommended animations:
 ## Known Gotchas
 
 - **Don't clip the parent**: bursts render in an overlay expanded via `.padding(-70)`. A `clipped()` / `cornerRadius` ancestor will shear the smoke/dust off at the view edge.
-- **Removal duration bounds the show**: once the exit animation completes, SwiftUI tears the view (and its burst overlay) down. Keep removal animations ≥ 0.45s for poof so the smoke finishes; pop and anvil bursts fire on insertion only.
+- **Removal duration bounds the show**: once the exit animation completes, SwiftUI tears the view (and its burst overlay) down. Poof and pop also burst on removal, so keep their removal animations ≥ 0.45s or the burst is cut off; anvil bursts on insertion only.
 - `swAnvil.impactDelay` must match the drop animation duration (default 0.2 pairs with `.easeIn(duration: 0.22)`) — if you slow the drop, raise the delay or dust flies before touchdown.
 - Particles are deliberately regenerated per burst with `random(in:)`; two bursts never look identical. That randomness lives outside the transition interpolation, so scrubbing/interactive transitions still work.
 - The poof fade compresses visibility into the first 40% of the timeline (`SWPoofFadeModifier`) so the view is gone while smoke still lingers — if you customize durations, keep that ratio or the card outlives its own smoke.

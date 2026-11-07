@@ -286,11 +286,282 @@ private struct SWAnimatedLoopRenderer: View {
     }
 }
 
-// (Optional `SWAnimatedLoopControlled` + `SWAnimatedLoopControlsSheet`
-// provide a gear ToolbarItem and a Form-based live-tuning sheet. The sheet
-// hides Shape selector / Star petals / Angular section based on the current
-// style. Style change reloads the numeric defaults — intentional. Omit in
-// production builds.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWAnimatedLoopControlled: View {
+    @State private var style: SWAnimatedLoopStyle
+    @State private var shape: SWAnimatedLoopShape
+    @State private var petals: Float
+    @State private var color1: Color
+    @State private var color2: Color
+    @State private var color3: Color
+    @State private var background: Color
+    @State private var speed: Float
+    @State private var lineWidth: Float
+    @State private var lines: Float
+    @State private var spacing: Float
+    @State private var channelOffset: Float
+    @State private var patternMod: Float
+    @State private var rotation: Float
+    @State private var scale: Float
+    @State private var centerX: Float
+    @State private var centerY: Float
+    @State private var angularLobes: Float
+    @State private var angularAmount: Float
+    @State private var angularSpeed: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWAnimatedLoop) {
+        _style         = State(initialValue: initial.style)
+        _shape         = State(initialValue: initial.shape)
+        _petals        = State(initialValue: Float(initial.petals))
+        _color1        = State(initialValue: initial.color1)
+        _color2        = State(initialValue: initial.color2)
+        _color3        = State(initialValue: initial.color3)
+        _background    = State(initialValue: initial.background)
+        _speed         = State(initialValue: initial.speed)
+        _lineWidth     = State(initialValue: initial.lineWidth)
+        _lines         = State(initialValue: Float(initial.lines))
+        _spacing       = State(initialValue: initial.spacing)
+        _channelOffset = State(initialValue: initial.channelOffset)
+        _patternMod    = State(initialValue: initial.patternMod)
+        _rotation      = State(initialValue: initial.rotation)
+        _scale         = State(initialValue: initial.scale)
+        _centerX       = State(initialValue: initial.centerX)
+        _centerY       = State(initialValue: initial.centerY)
+        _angularLobes  = State(initialValue: initial.angularLobes)
+        _angularAmount = State(initialValue: initial.angularAmount)
+        _angularSpeed  = State(initialValue: initial.angularSpeed)
+    }
+
+    /// Builder that produces a fresh renderer using the current
+    /// live-tweaked state. Wrapped in a helper so the `body` stays short
+    /// despite the renderer's 20-parameter initializer.
+    private func makeRenderer() -> SWAnimatedLoopRenderer {
+        SWAnimatedLoopRenderer(
+            style: style,
+            shape: shape,
+            petals: Int(petals.rounded()),
+            color1: color1,
+            color2: color2,
+            color3: color3,
+            background: background,
+            speed: speed,
+            lineWidth: lineWidth,
+            lines: Int(lines.rounded()),
+            spacing: spacing,
+            channelOffset: channelOffset,
+            patternMod: patternMod,
+            rotation: rotation,
+            scale: scale,
+            centerX: centerX,
+            centerY: centerY,
+            angularLobes: angularLobes,
+            angularAmount: angularAmount,
+            angularSpeed: angularSpeed
+        )
+    }
+
+    var body: some View {
+        // Style switching, parameter tweaks, and color picking all live in
+        // the sheet — the body itself is just the full-screen renderer of
+        // whichever style is currently selected.
+        makeRenderer()
+            .ignoresSafeArea()
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showSheet = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("Animated Loop Controls")
+                }
+            }
+            .sheet(isPresented: $showSheet) {
+            SWAnimatedLoopControlsSheet(
+                style: $style,
+                shape: $shape,
+                petals: $petals,
+                color1: $color1,
+                color2: $color2,
+                color3: $color3,
+                background: $background,
+                speed: $speed,
+                lineWidth: $lineWidth,
+                lines: $lines,
+                spacing: $spacing,
+                channelOffset: $channelOffset,
+                patternMod: $patternMod,
+                rotation: $rotation,
+                scale: $scale,
+                centerX: $centerX,
+                centerY: $centerY,
+                angularLobes: $angularLobes,
+                angularAmount: $angularAmount,
+                angularSpeed: $angularSpeed,
+                applyDefaults: applyDefaults
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    /// Loads `style`'s hand-tuned numeric defaults into the live state.
+    /// Invoked by the sheet's `onChange(style)` so each style ships with
+    /// the ring parameters its author designed.
+    private func applyDefaults(for s: SWAnimatedLoopStyle) {
+        let d = s.numericDefaults
+        speed         = d.speed
+        lineWidth     = d.lineWidth
+        lines         = Float(d.lines)
+        spacing       = d.spacing
+        channelOffset = d.channelOffset
+        patternMod    = d.patternMod
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWAnimatedLoopControlsSheet: View {
+    @Binding var style: SWAnimatedLoopStyle
+    @Binding var shape: SWAnimatedLoopShape
+    @Binding var petals: Float
+    @Binding var color1: Color
+    @Binding var color2: Color
+    @Binding var color3: Color
+    @Binding var background: Color
+    @Binding var speed: Float
+    @Binding var lineWidth: Float
+    @Binding var lines: Float
+    @Binding var spacing: Float
+    @Binding var channelOffset: Float
+    @Binding var patternMod: Float
+    @Binding var rotation: Float
+    @Binding var scale: Float
+    @Binding var centerX: Float
+    @Binding var centerY: Float
+    @Binding var angularLobes: Float
+    @Binding var angularAmount: Float
+    @Binding var angularSpeed: Float
+
+    /// Called by the sheet when `style` changes, so the parent can replace
+    /// the numeric ring defaults to the new style's hand-tuned values.
+    let applyDefaults: (SWAnimatedLoopStyle) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Style") {
+                    Picker("Style", selection: $style) {
+                        ForEach(SWAnimatedLoopStyle.allCases) { s in
+                            Text(s.displayName).tag(s)
+                        }
+                    }
+                }
+
+                // Shape sub-picker is only meaningful for the Shape style.
+                if style.supportsShape {
+                    Section("Shape") {
+                        Picker("Shape", selection: $shape) {
+                            ForEach(SWAnimatedLoopShape.allCases) { s in
+                                Text(s.displayName).tag(s)
+                            }
+                        }
+
+                        if shape == .star {
+                            SWAnimatedLoopSliderRow(label: "Petals", value: $petals, range: 3...12, step: 1)
+                        }
+                    }
+                }
+
+                Section("Colors") {
+                    ColorPicker("Channel 1",  selection: $color1,     supportsOpacity: false)
+                    ColorPicker("Channel 2",  selection: $color2,     supportsOpacity: false)
+                    ColorPicker("Channel 3",  selection: $color3,     supportsOpacity: false)
+                    ColorPicker("Background", selection: $background, supportsOpacity: false)
+                }
+
+                Section("Rings") {
+                    SWAnimatedLoopSliderRow(label: "Lines",          value: $lines,         range: 1...20,        step: 1)
+                    SWAnimatedLoopSliderRow(label: "Spacing",        value: $spacing,       range: 0.5...20,      step: 0.1)
+                    SWAnimatedLoopSliderRow(label: "Line Width",     value: $lineWidth,     range: 0.0001...0.02, step: 0.0001)
+                    SWAnimatedLoopSliderRow(label: "Channel Offset", value: $channelOffset, range: -0.5...0.5,    step: 0.005)
+                    SWAnimatedLoopSliderRow(label: "Pattern Mod",    value: $patternMod,    range: 0.01...2,      step: 0.01)
+                }
+
+                Section("Transform") {
+                    SWAnimatedLoopSliderRow(label: "Rotation", value: $rotation, range: -3.14...3.14, step: 0.05)
+                    SWAnimatedLoopSliderRow(label: "Scale",    value: $scale,    range: 0.2...5,      step: 0.05)
+                    SWAnimatedLoopSliderRow(label: "Center X", value: $centerX,  range: -1...1,       step: 0.05)
+                    SWAnimatedLoopSliderRow(label: "Center Y", value: $centerY,  range: -1...1,       step: 0.05)
+                }
+
+                Section("Motion") {
+                    SWAnimatedLoopSliderRow(label: "Speed", value: $speed, range: 0...1, step: 0.01)
+                }
+
+                // Angular controls only apply to the Neon style.
+                if style.supportsAngular {
+                    Section("Angular (Neon)") {
+                        SWAnimatedLoopSliderRow(label: "Lobes",  value: $angularLobes,  range: 1...12, step: 1)
+                        SWAnimatedLoopSliderRow(label: "Amount", value: $angularAmount, range: 0...0.5, step: 0.005)
+                        SWAnimatedLoopSliderRow(label: "Speed",  value: $angularSpeed,  range: 0...3, step: 0.05)
+                    }
+                }
+            }
+            .navigationTitle("Animated Loop")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            // Style change → reload that style's hand-tuned numeric defaults
+            // so each style ships with the look its author designed.
+            .onChange(of: style) { _, newStyle in
+                applyDefaults(newStyle)
+            }
+        }
+    }
+}
+
+private struct SWAnimatedLoopSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(formattedValue)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+
+    /// Integer-stepped sliders render as whole numbers; sub-thousandth
+    /// steps render with four decimals; everything else gets two.
+    private var formattedValue: String {
+        if step >= 1 {
+            return "\(Int(value.rounded()))"
+        } else if step < 0.001 {
+            return String(format: "%.4f", value)
+        } else {
+            return String(format: "%.2f", value)
+        }
+    }
+}
 ```
 
 ### SWAnimatedLoop.metal
@@ -300,8 +571,7 @@ private struct SWAnimatedLoopRenderer: View {
 #include <SwiftUI/SwiftUI_Metal.h>
 using namespace metal;
 
-// MARK: - Shape — user-pickable shape (circle / square / diamond pip /
-//                                       hexagon / star)
+// MARK: - Shape
 
 [[ stitchable ]] half4 swAnimatedLoopShape(float2 position,
                                            half4  color,
@@ -378,7 +648,7 @@ using namespace metal;
     return half4(half3(bg + col), 1.0);
 }
 
-// MARK: - Diamond — L1 distance rings + multiplicative pattern
+// MARK: - Diamond
 
 [[ stitchable ]] half4 swAnimatedLoopDiamond(float2 position,
                                              half4  color,
@@ -440,7 +710,7 @@ using namespace metal;
     return half4(half3(bg + col), 1.0);
 }
 
-// MARK: - Neon — circle rings + per-channel angular wobble + baked-in RGB boost
+// MARK: - Neon
 
 [[ stitchable ]] half4 swAnimatedLoopNeon(float2 position,
                                           half4  color,
@@ -503,7 +773,7 @@ using namespace metal;
     return half4(half3(bg + col), 1.0);
 }
 
-// MARK: - Warp — stretched-ellipse rings + 1D pattern
+// MARK: - Warp
 
 [[ stitchable ]] half4 swAnimatedLoopWarp(float2 position,
                                           half4  color,

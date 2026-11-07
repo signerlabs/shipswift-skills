@@ -13,6 +13,7 @@ Tappable card that expands to fill the device display using Apple's native zoom 
 **Requires:**
 - iOS 18+ (uses `.matchedTransitionSource(id:in:)` and `.navigationTransition(.zoom(sourceID:in:))`)
 - An enclosing `NavigationStack` — the component pushes its expanded view onto the host stack
+- An `AccentColor` color set in your asset catalog — the footer uses Xcode's generated `.accent` asset symbol (Xcode's default app template already includes one)
 
 **iOS only.** File is named `SWFullScreenButton+iOS.swift`; in Xcode → Build Phases → Compile Sources set the platform filter for this file to **iOS**.
 

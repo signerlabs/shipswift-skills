@@ -31,6 +31,7 @@ struct SWLabelWithIcon: View {
                     .foregroundStyle(.ultraThickMaterial)
             }
             .padding(5)
+            .accessibilityHidden(true)
             Text(name)
         }
     }
@@ -47,6 +48,7 @@ struct SWLabelWithImage: View {
                 .frame(width: 32, height: 32)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(5)
+                .accessibilityHidden(true)
             Text(name)
         }
     }

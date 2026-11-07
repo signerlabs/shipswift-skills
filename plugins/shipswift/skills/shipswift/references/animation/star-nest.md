@@ -102,6 +102,8 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //    - `volsteps` and `iterations` are hard-clamped to 24 in the shader so a
 //      runaway value can never lock the GPU.
 //
+//  Created by Wei Zhong on 5/30/26.
+//
 
 import SwiftUI
 
@@ -209,9 +211,151 @@ private struct SWStarNestRenderer: View {
     }
 }
 
-// (Optional `SWStarNestControlled` + `SWStarNestControlsSheet` provide a gear
-// ToolbarItem and a Form-based live-tuning sheet for all ten parameters. Omit
-// them in production builds; the renderer above is everything you need to ship.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWStarNestControlled: View {
+    @State private var zoom: Float
+    @State private var speed: Float
+    @State private var brightness: Float
+    @State private var saturation: Float
+    @State private var darkmatter: Float
+    @State private var distfading: Float
+    @State private var angleX: Float
+    @State private var angleY: Float
+    @State private var volsteps: Float
+    @State private var iterations: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWStarNest) {
+        _zoom       = State(initialValue: initial.zoom)
+        _speed      = State(initialValue: initial.speed)
+        _brightness = State(initialValue: initial.brightness)
+        _saturation = State(initialValue: initial.saturation)
+        _darkmatter = State(initialValue: initial.darkmatter)
+        _distfading = State(initialValue: initial.distfading)
+        _angleX     = State(initialValue: initial.angleX)
+        _angleY     = State(initialValue: initial.angleY)
+        _volsteps   = State(initialValue: initial.volsteps)
+        _iterations = State(initialValue: initial.iterations)
+    }
+
+    var body: some View {
+        SWStarNestRenderer(
+            zoom: zoom,
+            speed: speed,
+            brightness: brightness,
+            saturation: saturation,
+            darkmatter: darkmatter,
+            distfading: distfading,
+            angleX: angleX,
+            angleY: angleY,
+            volsteps: volsteps,
+            iterations: iterations
+        )
+        .ignoresSafeArea()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Star Nest Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWStarNestControlsSheet(
+                zoom: $zoom,
+                speed: $speed,
+                brightness: $brightness,
+                saturation: $saturation,
+                darkmatter: $darkmatter,
+                distfading: $distfading,
+                angleX: $angleX,
+                angleY: $angleY,
+                volsteps: $volsteps,
+                iterations: $iterations
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWStarNestControlsSheet: View {
+    @Binding var zoom: Float
+    @Binding var speed: Float
+    @Binding var brightness: Float
+    @Binding var saturation: Float
+    @Binding var darkmatter: Float
+    @Binding var distfading: Float
+    @Binding var angleX: Float
+    @Binding var angleY: Float
+    @Binding var volsteps: Float
+    @Binding var iterations: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Camera") {
+                    SWStarNestSliderRow(label: "Zoom",   value: $zoom,   range: 0.2...2,    step: 0.01)
+                    SWStarNestSliderRow(label: "Angle X", value: $angleX, range: 0...6.283,  step: 0.01)
+                    SWStarNestSliderRow(label: "Angle Y", value: $angleY, range: 0...6.283,  step: 0.01)
+                    SWStarNestSliderRow(label: "Speed",  value: $speed,  range: 0...0.05,   step: 0.001)
+                }
+
+                Section("Nebula") {
+                    SWStarNestSliderRow(label: "Brightness", value: $brightness, range: 0.0002...0.006, step: 0.0001)
+                    SWStarNestSliderRow(label: "Saturation", value: $saturation, range: 0...1,          step: 0.01)
+                    SWStarNestSliderRow(label: "Dark Matter", value: $darkmatter, range: 0...1,          step: 0.01)
+                    SWStarNestSliderRow(label: "Dist Fading", value: $distfading, range: 0.3...0.95,     step: 0.01)
+                }
+
+                // Higher = more depth & detail, but quadratically more cost
+                // (volsteps × iterations folds per pixel). Lower these first if
+                // the frame rate drops on older devices.
+                Section("Quality / Performance") {
+                    SWStarNestSliderRow(label: "Vol Steps",  value: $volsteps,   range: 4...24, step: 1)
+                    SWStarNestSliderRow(label: "Iterations", value: $iterations, range: 4...24, step: 1)
+                }
+            }
+            .navigationTitle("Star Nest")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWStarNestSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.4f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWStarNest.metal
@@ -292,7 +436,8 @@ static float3 swStarNestMod(float3 x, float3 y) {
 
     // Camera orientation. The original drives a1/a2 from the mouse; here they
     // are the caller-supplied `angleX` / `angleY` so the look is reproducible
-    // and tunable. The +0.5 / +0.8 base matches Star Nest's neutral framing.
+    // and tunable. Their defaults (0.5 / 0.8) are Star Nest's `.5 + mouse` /
+    // `.8 + mouse` base with the mouse at the origin — its neutral framing.
     float a1 = angleX;
     float a2 = angleY;
 

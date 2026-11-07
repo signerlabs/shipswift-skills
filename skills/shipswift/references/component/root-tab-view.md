@@ -10,6 +10,8 @@ tags: [component, display, tabview, navigation, tab, iOS18, SwiftUI]
 
 Root TabView template using the iOS 18+ Tab API, with selected/unselected icon switching, native search tab, and haptic feedback. Uses `.environment(\.symbolVariants, .none)` to prevent the system from auto-filling icons.
 
+The selection color is set explicitly with `.tint(.accent)` (`.accent` is the color Xcode generates from the `AccentColor` color set in your asset catalog): from iOS 26 the native tab bar ignores the asset catalog's global accent color and falls back to system blue. Replace `.accent` with your brand color if you prefer.
+
 ## Source Code
 
 ```swift
@@ -89,6 +91,8 @@ struct SWRootTabView: View {
                 .environment(\.symbolVariants, .none)
             }
         }
+        // iOS 26+ tab bars ignore the global accent color; without this the selection is system blue
+        .tint(.accent)
         .sensoryFeedback(.increase, trigger: selectedTab)
     }
 }

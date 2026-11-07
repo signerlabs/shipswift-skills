@@ -120,9 +120,142 @@ private struct SWInkSmokeRenderer: View {
     }
 }
 
-// (Optional `SWInkSmokeControlled` + `SWInkSmokeControlsSheet` provide a
-// gear ToolbarItem and a Form-based live-tuning sheet. Omit them in
-// production builds.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWInkSmokeControlled: View {
+    @State private var ink1: Color
+    @State private var ink2: Color
+    @State private var ink3: Color
+    @State private var ink4: Color
+    @State private var glow: Color
+    @State private var speed: Float
+    @State private var scale: Float
+    @State private var warp: Float
+    @State private var highlight: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWInkSmoke) {
+        _ink1      = State(initialValue: initial.ink1)
+        _ink2      = State(initialValue: initial.ink2)
+        _ink3      = State(initialValue: initial.ink3)
+        _ink4      = State(initialValue: initial.ink4)
+        _glow      = State(initialValue: initial.glow)
+        _speed     = State(initialValue: initial.speed)
+        _scale     = State(initialValue: initial.scale)
+        _warp      = State(initialValue: initial.warp)
+        _highlight = State(initialValue: initial.highlight)
+    }
+
+    var body: some View {
+        SWInkSmokeRenderer(
+            ink1: ink1,
+            ink2: ink2,
+            ink3: ink3,
+            ink4: ink4,
+            glow: glow,
+            speed: speed,
+            scale: scale,
+            warp: warp,
+            highlight: highlight
+        )
+        .ignoresSafeArea()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Ink Smoke Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWInkSmokeControlsSheet(
+                ink1: $ink1,
+                ink2: $ink2,
+                ink3: $ink3,
+                ink4: $ink4,
+                glow: $glow,
+                speed: $speed,
+                scale: $scale,
+                warp: $warp,
+                highlight: $highlight
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWInkSmokeControlsSheet: View {
+    @Binding var ink1: Color
+    @Binding var ink2: Color
+    @Binding var ink3: Color
+    @Binding var ink4: Color
+    @Binding var glow: Color
+    @Binding var speed: Float
+    @Binding var scale: Float
+    @Binding var warp: Float
+    @Binding var highlight: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Inks") {
+                    ColorPicker("Ink 1", selection: $ink1, supportsOpacity: false)
+                    ColorPicker("Ink 2", selection: $ink2, supportsOpacity: false)
+                    ColorPicker("Ink 3", selection: $ink3, supportsOpacity: false)
+                    ColorPicker("Ink 4", selection: $ink4, supportsOpacity: false)
+                    ColorPicker("Glow",  selection: $glow, supportsOpacity: false)
+                }
+
+                Section("Field") {
+                    SWInkSmokeSliderRow(label: "Scale",     value: $scale,     range: 0.2...5,  step: 0.05)
+                    SWInkSmokeSliderRow(label: "Warp",      value: $warp,      range: 0...10,   step: 0.1)
+                    SWInkSmokeSliderRow(label: "Highlight", value: $highlight, range: 0...3,    step: 0.05)
+                }
+
+                Section("Motion") {
+                    SWInkSmokeSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                }
+            }
+            .navigationTitle("Ink Smoke")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWInkSmokeSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWInkSmoke.metal

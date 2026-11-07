@@ -1,6 +1,6 @@
 ---
 name: shipswift
-description: ShipSwift skill library — 116 production-ready SwiftUI skills for iOS/macOS covering animations (view transitions, particle transitions, change effects, shimmer, confetti, typewriter, 27 Metal shaders), charts (line, bar, donut, radar, heatmap, 3D network graph), UI components (onboarding, alert, stepper, search bar, cached remote images) and full-stack modules (Cognito/Supabase auth, camera, chat, StoreKit subscriptions, CDK infra). Use when building SwiftUI features, adding animations/charts/components, or when the user mentions ShipSwift.
+description: ShipSwift skill library — 117 production-ready SwiftUI skills for iOS/macOS covering animations (view transitions, particle transitions, change effects, shimmer, confetti, typewriter, 28 Metal shaders), charts (line, bar, donut, radar, heatmap, 3D network graph), UI components (onboarding, alert, stepper, search bar, cached remote images) and full-stack modules (Cognito/Supabase auth, camera, chat, StoreKit subscriptions, CDK infra). Use when building SwiftUI features, adding animations/charts/components, or when the user mentions ShipSwift.
 ---
 
 # ShipSwift Skills
@@ -9,7 +9,7 @@ Production-ready SwiftUI implementations you can copy into iOS/macOS apps. Each 
 
 ## How to use
 
-1. **Find a skill**: read [references/index.md](references/index.md) — the full catalog (116 skills across animation / chart / component / module) with one-line descriptions.
+1. **Find a skill**: read [references/index.md](references/index.md) — the full catalog (117 skills across animation / chart / component / module) with one-line descriptions.
 2. **Read the skill**: free skills are bundled locally at `references/<category>/<id>.md`. Always read the full skill file before writing code — do not improvise from the index line alone.
 3. **Integrate**: follow the skill's integration checklist. Keep the `SW` type prefix and `.sw` view-modifier naming conventions unless the user asks otherwise.
 

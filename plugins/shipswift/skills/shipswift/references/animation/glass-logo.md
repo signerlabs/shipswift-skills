@@ -377,7 +377,7 @@ private struct SWGlassLogoControlled: View {
                 fresnelSoftness: $fresnelSoftness,
                 flowSpeed: $flowSpeed
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -575,8 +575,6 @@ namespace sw_glass_logo {
     float tintIntensity
 ) {
     using namespace sw_glass_logo;
-
-    float2 size = boundingRect.zw;
 
     // Coverage (silhouette alpha) at this pixel. Zero coverage = fully outside
     // the logo shape, so we cut straight to transparent and do no work.

@@ -8,9 +8,9 @@ tags: [component, display, onboarding, tabview, paging, SwiftUI, permission, pre
 
 ## Overview
 
-Multi-page onboarding view with swipe-to-navigate support, a "Continue / Get Started" button and a "Skip" button at the bottom. Page content is defined by the `OnboardingPage` enum (icon / title / description) -- add or remove cases freely.
+Multi-page onboarding view with swipe-to-navigate support, a "Continue / Get Started" button and a "Skip" button at the bottom. Page content is defined by the `SWOnboardingPage` enum (icon / title / description) -- add or remove cases freely.
 
-> **Note:** This component uses `.buttonStyle(.borderedProminent)` as a default. Replace it with `.buttonStyle(.swPrimary)` if using ShipSwift button styles.
+> **Requires:** `SWButtonStyle` (`.swPrimary`) from ShipSwift's `SWUtil` — included below under [SWButtonStyle (from SWUtil)](#swbuttonstyle-from-swutil).
 
 ## Source Code
 
@@ -21,8 +21,10 @@ import SwiftUI
 struct SWOnboardingView: View {
     let onComplete: () -> Void
 
-    private let pages = OnboardingPage.allCases
+    private let pages = SWOnboardingPage.allCases
     @State private var currentPage = 0
+
+    private var isLastPage: Bool { currentPage == pages.count - 1 }
 
     var body: some View {
         VStack {
@@ -54,7 +56,7 @@ struct SWOnboardingView: View {
 
             // Bottom confirm button
             Button {
-                if currentPage < pages.count - 1 {
+                if !isLastPage {
                     withAnimation {
                         currentPage += 1
                     }
@@ -62,26 +64,28 @@ struct SWOnboardingView: View {
                     onComplete()
                 }
             } label: {
-                Text(currentPage < pages.count - 1 ? "Continue" : "Get Started")
+                Text(isLastPage ? "Get Started" : "Continue")
             }
-            .buttonStyle(.borderedProminent) // Replace with .swPrimary if using ShipSwift button styles
+            .buttonStyle(.swPrimary)
+            .padding(.horizontal)
             .padding(.bottom)
 
-            // Bottom skip button
+            // Bottom skip button (hidden on the last page, where the main button finishes)
             Button {
                 onComplete()
             } label: {
                 Text("Skip")
                     .foregroundStyle(.secondary)
             }
-            .opacity(currentPage < pages.count - 1 ? 0 : 1)
+            .opacity(isLastPage ? 0 : 1)
+            .disabled(isLastPage)
+            .accessibilityHidden(isLastPage)
         }
-        .safeAreaPadding(.horizontal)
     }
 }
 
 // MARK: - Onboarding Page Model
-enum OnboardingPage: CaseIterable {
+enum SWOnboardingPage: CaseIterable {
     case shipFast
     case components
     case modular
@@ -121,6 +125,85 @@ enum OnboardingPage: CaseIterable {
 }
 ```
 
+### SWButtonStyle (from SWUtil)
+
+The buttons use ShipSwift's `.swPrimary` / `.swSecondary` styles, defined in `SWUtil/SWViewExtension.swift` and reproduced here. Skip this block if your project already has ShipSwift's `SWUtil`. `.accent` is the color Xcode generates from the `AccentColor` color set in your asset catalog (the default app template includes one).
+
+```swift
+import SwiftUI
+
+// MARK: - Button Style
+
+struct SWButtonStyle: ButtonStyle {
+    enum Variant {
+        case primary
+        case secondary
+    }
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    let variant: Variant
+    var showBorder: Bool = false
+    var cornerRadius: CGFloat = 16
+
+    private var backgroundColor: Color {
+        switch variant {
+        case .primary: .accent
+        case .secondary: .accent.opacity(0.1)
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch variant {
+        case .primary: .white
+        case .secondary: .primary.opacity(0.8)
+        }
+    }
+
+    private var borderColor: Color {
+        switch variant {
+        case .primary: .primary
+        case .secondary: .secondary.opacity(0.8)
+        }
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(backgroundColor)
+            )
+            .foregroundStyle(foregroundColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(
+                        showBorder ? borderColor : .clear,
+                        lineWidth: 1.5
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.5)
+    }
+}
+
+extension ButtonStyle where Self == SWButtonStyle {
+    /// Primary button style (confirm / save, etc.)
+    static var swPrimary: SWButtonStyle { .init(variant: .primary) }
+    /// Secondary button style (cancel / close, etc.)
+    static var swSecondary: SWButtonStyle { .init(variant: .secondary) }
+
+    static func swPrimary(showBorder: Bool = true, cornerRadius: CGFloat = 12) -> SWButtonStyle {
+        .init(variant: .primary, showBorder: showBorder, cornerRadius: cornerRadius)
+    }
+
+    static func swSecondary(showBorder: Bool = true, cornerRadius: CGFloat = 12) -> SWButtonStyle {
+        .init(variant: .secondary, showBorder: showBorder, cornerRadius: cornerRadius)
+    }
+}
+```
+
 ## Usage
 
 ```swift
@@ -144,7 +227,7 @@ Onboarding is the natural moment to request iOS system permissions — the user 
 | Pattern | When to use | Example |
 |---|---|---|
 | **Use-site request** | The permission is only meaningful inside a specific feature that the user explicitly invokes. The SDK or framework handles the prompt the first time the API is touched. | Camera, microphone — see [Camera](../module/camera.md), [Chat](../module/chat.md) |
-| **Onboarding prefetch (fire-and-forget)** | The permission is needed for ambient features (background updates, push, gallery save) that have no obvious "tap me" entry point. Request early, never block on the answer. | Location, local network, notifications, photo library |
+| **Onboarding prefetch (fire-and-forget)** | The permission is needed for ambient features (background updates, push, gallery save) that have no obvious "tap me" entry point. Request early, never block on the answer. | Location, cellular data (China mainland), notifications, photo library |
 | **Deferred request + retry** | Apple's review rules require a different dialog (network, etc.) to be dismissed first, or the prompt is governed by App Store guidelines that dictate timing. | ATT — see [TikTok Tracking](../module/tiktok-tracking.md) |
 
 ### Anti-pattern (DO NOT DO THIS)
@@ -173,53 +256,62 @@ Why it hangs:
 - The `while` loop has no timeout and no escape condition other than a status change that may never come.
 - The hang sits inside `.task`, so the SwiftUI runtime keeps the view alive but every downstream `await` (data load, navigation, telemetry) is starved.
 
-> **Reference**: FoodieMap incident — bug introduced in commit `ae4e99e` (2026-03-25) which refactored a 10s-timeout polling into an unbounded `while .notDetermined` loop. Latent for ~7 weeks until surfacing on 2026-05-12 after a simulator wipe: on the first cold launch with location status `.notDetermined`, the dialog was suppressed by the LaunchScreen overlay and the loop spun forever, starving `await store.load()` and hanging the splash screen indefinitely. Fix shipped in `90e5e87`.
+> **Real-world incident**: a refactor turned a 10-second-timeout poll into an unbounded `while .notDetermined` loop. It stayed latent for weeks, until the first cold launch after a simulator wipe: location was `.notDetermined`, the launch screen suppressed the dialog, the loop spun forever, `await store.load()` never ran and the splash screen hung.
 
 ### Recommended: fire-and-forget in OnboardingView's .task
 
-Kick off all background-prefetchable permissions in parallel inside the onboarding view's `.task`. Do not await any of them. Each prefetch function uses `guard authorizationStatus == .notDetermined` so the prompt only ever shows once across launches.
+Kick off all background-prefetchable permissions inside the onboarding view's `.task`. Do not await any of them. Each prefetch function uses `guard authorizationStatus == .notDetermined` so the prompt only ever shows once across launches. Keep the `CLLocationManager` in a property: a manager created as a local is deallocated when the function returns, and the system takes the pending prompt down with it.
 
 ```swift
 import SwiftUI
 import CoreLocation
 import UserNotifications
 import Photos
-import Network
 
 struct SWOnboardingView: View {
     let onComplete: () -> Void
+
+    // Must outlive the request — a local manager is deallocated and its prompt dismissed
+    @State private var locationManager = CLLocationManager()
 
     var body: some View {
         // ... existing onboarding UI ...
         Color.clear
             .task {
-                // ✓ Fire-and-forget: kick all prompts off in parallel,
+                // ✓ Fire-and-forget: kick every prompt off without awaiting it,
                 //   never block onboarding or downstream work on the answer.
-                await prefetchNetworkPermission()  // only this one needs await
+                prefetchNetworkPermission()
                 prefetchLocationPermission()
                 prefetchNotificationPermission()
                 prefetchPhotoLibraryPermission()
             }
     }
 
-    /// Local network permission (iOS 14+). Triggered by *any* outbound connection
-    /// to a local host; using `apple.com` is a harmless way to surface the prompt
-    /// during onboarding instead of mid-feature.
-    private func prefetchNetworkPermission() async {
+    /// Cellular data ("Wireless Data" prompt on China mainland devices). The first
+    /// outbound request triggers it; a HEAD to `apple.com` surfaces it during
+    /// onboarding instead of mid-feature. An ephemeral session keeps the probe out
+    /// of the shared URL cache. (This does NOT trigger the local-network prompt —
+    /// that one only fires on connections to devices on the LAN.)
+    private func prefetchNetworkPermission() {
         guard let url = URL(string: "https://www.apple.com") else { return }
-        _ = try? await URLSession.shared.data(from: url)
+        Task {
+            let session = URLSession(configuration: .ephemeral)
+            defer { session.finishTasksAndInvalidate() }
+            var request = URLRequest(url: url)
+            request.httpMethod = "HEAD"
+            _ = try? await session.data(for: request)
+        }
     }
 
     /// Location (when-in-use). The request is non-blocking; the response arrives
     /// later via `locationManagerDidChangeAuthorization(_:)`. Never poll for it.
     private func prefetchLocationPermission() {
-        let manager = CLLocationManager()
-        guard manager.authorizationStatus == .notDetermined else { return }
-        manager.requestWhenInUseAuthorization()
+        guard locationManager.authorizationStatus == .notDetermined else { return }
+        locationManager.requestWhenInUseAuthorization()
     }
 
-    /// Notifications. The closure is the *only* sanctioned way to learn the
-    /// outcome — wrap it in a detached Task so onboarding never waits on it.
+    /// Notifications. The async result is the *only* sanctioned way to learn the
+    /// outcome — wrap it in a Task so onboarding never waits on it.
     private func prefetchNotificationPermission() {
         Task {
             let center = UNUserNotificationCenter.current()

@@ -125,9 +125,155 @@ private struct SWStarfieldRenderer: View {
     }
 }
 
-// (Optional `SWStarfieldControlled` + `SWStarfieldControlsSheet` provide a
-// gear ToolbarItem and a Form-based live-tuning sheet. Omit them in production
-// builds; the renderer above is everything you need to ship.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWStarfieldControlled: View {
+    @State private var starColor: Color
+    @State private var background: Color
+    @State private var speed: Float
+    @State private var layers: Float        // Float-backed so it can drive a Slider
+    @State private var baseScale: Float
+    @State private var scaleStep: Float
+    @State private var density: Float
+    @State private var starSize: Float
+    @State private var twinkleSpeed: Float
+    @State private var twinkleAmount: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWStarfield) {
+        _starColor     = State(initialValue: initial.starColor)
+        _background    = State(initialValue: initial.background)
+        _speed         = State(initialValue: initial.speed)
+        _layers        = State(initialValue: Float(initial.layers))
+        _baseScale     = State(initialValue: initial.baseScale)
+        _scaleStep     = State(initialValue: initial.scaleStep)
+        _density       = State(initialValue: initial.density)
+        _starSize      = State(initialValue: initial.starSize)
+        _twinkleSpeed  = State(initialValue: initial.twinkleSpeed)
+        _twinkleAmount = State(initialValue: initial.twinkleAmount)
+    }
+
+    var body: some View {
+        SWStarfieldRenderer(
+            starColor: starColor,
+            background: background,
+            speed: speed,
+            layers: Int(layers.rounded()),
+            baseScale: baseScale,
+            scaleStep: scaleStep,
+            density: density,
+            starSize: starSize,
+            twinkleSpeed: twinkleSpeed,
+            twinkleAmount: twinkleAmount
+        )
+        .ignoresSafeArea()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Starfield Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWStarfieldControlsSheet(
+                starColor: $starColor,
+                background: $background,
+                speed: $speed,
+                layers: $layers,
+                baseScale: $baseScale,
+                scaleStep: $scaleStep,
+                density: $density,
+                starSize: $starSize,
+                twinkleSpeed: $twinkleSpeed,
+                twinkleAmount: $twinkleAmount
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWStarfieldControlsSheet: View {
+    @Binding var starColor: Color
+    @Binding var background: Color
+    @Binding var speed: Float
+    @Binding var layers: Float
+    @Binding var baseScale: Float
+    @Binding var scaleStep: Float
+    @Binding var density: Float
+    @Binding var starSize: Float
+    @Binding var twinkleSpeed: Float
+    @Binding var twinkleAmount: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Colors") {
+                    ColorPicker("Star Color", selection: $starColor, supportsOpacity: false)
+                    ColorPicker("Background", selection: $background, supportsOpacity: false)
+                }
+
+                Section("Field") {
+                    SWStarfieldSliderRow(label: "Layers",     value: $layers,    range: 1...8,    step: 1)
+                    SWStarfieldSliderRow(label: "Base Scale", value: $baseScale, range: 5...200,  step: 1)
+                    SWStarfieldSliderRow(label: "Scale Step", value: $scaleStep, range: 0...100,  step: 1)
+                    SWStarfieldSliderRow(label: "Density",    value: $density,   range: 0...1,    step: 0.01)
+                    SWStarfieldSliderRow(label: "Star Size",  value: $starSize,  range: 0.05...2, step: 0.05)
+                }
+
+                Section("Motion") {
+                    SWStarfieldSliderRow(label: "Speed",          value: $speed,         range: 0...3,  step: 0.05)
+                    SWStarfieldSliderRow(label: "Twinkle Speed",  value: $twinkleSpeed,  range: 0...10, step: 0.1)
+                    SWStarfieldSliderRow(label: "Twinkle Amount", value: $twinkleAmount, range: 0...1,  step: 0.01)
+                }
+            }
+            .navigationTitle("Starfield Controls")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWStarfieldSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(formattedValue)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+
+    /// Integer-stepped sliders look cleaner as whole numbers.
+    private var formattedValue: String {
+        step >= 1
+            ? "\(Int(value.rounded()))"
+            : String(format: "%.2f", value)
+    }
+}
 ```
 
 ### SWStarfield.metal

@@ -226,7 +226,9 @@ public struct SWWallet: View {
             //    front-largest / back-smallest ladder when revealed. The front
             //    card (largest index) is full size and sits lowest; cards further
             //    back shrink and rise, so a back card never covers the one in front.
-            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+            //    Keyed by position: `SWWalletCard.id` is a fresh UUID per instance,
+            //    so cards rebuilt by the caller would otherwise restart their views.
+            ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
                 cardView(card)
                     .scaleEffect(cardScale(index), anchor: .top)
                     .offset(y: cardOffsetY(index))
@@ -360,6 +362,7 @@ public struct SWWallet: View {
                         .background(.white.opacity(0.12), in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isRevealed ? "Hide Balances" : "Show Balances")
                 .padding(.bottom, 14)
             }
             .padding(.horizontal, 20)
@@ -431,8 +434,8 @@ struct WalletHeader: View {
 
 ## Integration Notes
 
-- **Self-contained, zero dependencies** — the file imports only `SwiftUI` and carries its own private `Color` extension. Drop `SWWallet.swift` into your project and it compiles as-is (no `SWUtil` or other ShipSwift files required).
-- **Cross-platform** — uses `UnevenRoundedRectangle` (iOS 16+ / macOS 13+) and `.contentTransition(.numericText())`. No `#if os` branches needed in this component.
+- **Self-contained, zero dependencies** — the file imports only `SwiftUI`. Drop `SWWallet.swift` into your project and it compiles as-is (no `SWUtil` or other ShipSwift files required).
+- **Cross-platform** — uses `UnevenRoundedRectangle` and `.contentTransition(.numericText())`, both available on the iOS 18 / macOS 15 minimum. No `#if os` branches needed in this component.
 - **No brand assets bundled** — card wordmarks are plain bold `Text`. To show a real logo, swap the `Text(card.name)` for your own bundled `Image`; this keeps the public template free of trademarked logo files.
 - **Currency formatting** — driven entirely by `currencyCode`. The component never hard-codes a `$`; it relies on `.currency(code:)` so the symbol, decimal, and grouping separators respect both the ISO code and the device locale.
 

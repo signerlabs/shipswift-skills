@@ -131,9 +131,157 @@ private struct SWLiquidChromeRenderer: View {
     }
 }
 
-// (Optional `SWLiquidChromeControlled` + `SWLiquidChromeControlsSheet`
-// provide a gear ToolbarItem and a Form-based live-tuning sheet. Omit
-// them in production builds.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWLiquidChromeControlled: View {
+    @State private var shadow: Color
+    @State private var silver: Color
+    @State private var highlight: Color
+    @State private var tint: Color
+    @State private var speed: Float
+    @State private var scale: Float
+    @State private var warp: Float
+    @State private var contrast: Float
+    @State private var specPower: Float
+    @State private var specStrength: Float
+    @State private var tintStrength: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWLiquidChrome) {
+        _shadow       = State(initialValue: initial.shadow)
+        _silver       = State(initialValue: initial.silver)
+        _highlight    = State(initialValue: initial.highlight)
+        _tint         = State(initialValue: initial.tint)
+        _speed        = State(initialValue: initial.speed)
+        _scale        = State(initialValue: initial.scale)
+        _warp         = State(initialValue: initial.warp)
+        _contrast     = State(initialValue: initial.contrast)
+        _specPower    = State(initialValue: initial.specPower)
+        _specStrength = State(initialValue: initial.specStrength)
+        _tintStrength = State(initialValue: initial.tintStrength)
+    }
+
+    var body: some View {
+        SWLiquidChromeRenderer(
+            shadow: shadow,
+            silver: silver,
+            highlight: highlight,
+            tint: tint,
+            speed: speed,
+            scale: scale,
+            warp: warp,
+            contrast: contrast,
+            specPower: specPower,
+            specStrength: specStrength,
+            tintStrength: tintStrength
+        )
+        .ignoresSafeArea()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Liquid Chrome Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWLiquidChromeControlsSheet(
+                shadow: $shadow,
+                silver: $silver,
+                highlight: $highlight,
+                tint: $tint,
+                speed: $speed,
+                scale: $scale,
+                warp: $warp,
+                contrast: $contrast,
+                specPower: $specPower,
+                specStrength: $specStrength,
+                tintStrength: $tintStrength
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWLiquidChromeControlsSheet: View {
+    @Binding var shadow: Color
+    @Binding var silver: Color
+    @Binding var highlight: Color
+    @Binding var tint: Color
+    @Binding var speed: Float
+    @Binding var scale: Float
+    @Binding var warp: Float
+    @Binding var contrast: Float
+    @Binding var specPower: Float
+    @Binding var specStrength: Float
+    @Binding var tintStrength: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Colors") {
+                    ColorPicker("Shadow",    selection: $shadow,    supportsOpacity: false)
+                    ColorPicker("Silver",    selection: $silver,    supportsOpacity: false)
+                    ColorPicker("Highlight", selection: $highlight, supportsOpacity: false)
+                    ColorPicker("Tint",      selection: $tint,      supportsOpacity: false)
+                }
+
+                Section("Surface") {
+                    SWLiquidChromeSliderRow(label: "Scale",    value: $scale,    range: 0.2...5, step: 0.05)
+                    SWLiquidChromeSliderRow(label: "Warp",     value: $warp,     range: 0...5,   step: 0.05)
+                    SWLiquidChromeSliderRow(label: "Contrast", value: $contrast, range: 0.1...3, step: 0.05)
+                }
+
+                Section("Lighting") {
+                    SWLiquidChromeSliderRow(label: "Spec Power",    value: $specPower,    range: 1...50, step: 0.5)
+                    SWLiquidChromeSliderRow(label: "Spec Strength", value: $specStrength, range: 0...2,  step: 0.05)
+                    SWLiquidChromeSliderRow(label: "Tint Strength", value: $tintStrength, range: 0...2,  step: 0.05)
+                }
+
+                Section("Motion") {
+                    SWLiquidChromeSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                }
+            }
+            .navigationTitle("Liquid Chrome")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWLiquidChromeSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWLiquidChrome.metal

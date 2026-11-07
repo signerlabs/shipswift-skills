@@ -2,7 +2,7 @@
 
 **Install once. Build iOS apps with production-ready SwiftUI skills — right inside your AI coding tool.**
 
-ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as an **Agent Skill**: 85 free skills are bundled directly inside it — no server, no MCP, no configuration.
+ShipSwift provides copy-paste-ready implementations for animations, charts, UI components, and full-stack modules (auth, camera, subscriptions, chat, and more). This repository distributes ShipSwift as an **Agent Skill**: 86 free skills are bundled directly inside it — no server, no MCP, no configuration.
 
 ## Quick Start
 
@@ -22,14 +22,14 @@ The Agent Skill costs almost nothing at rest — skill docs are loaded only when
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| **Animation** | 43 | Shimmer, Typewriter, Confetti, Mesh Gradient + 27 Metal shader backgrounds |
+| **Animation** | 44 | Shimmer, Typewriter, Confetti, Mesh Gradient + 28 Metal shader backgrounds |
 | **Chart** | 9 | Line, Bar, Area, Donut, Ring, Radar, Scatter, Heatmap, 3D Network Graph |
 | **Component** | 23 | Onboarding, Alert, Loading, Stepper, Search Bar, Wallet, KPI Card |
 | **Module** | 41 (31 Pro) | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase); Pro: full app screens, paywall templates |
 
 Every skill is a self-contained doc: architecture overview + full source code + integration checklist + known pitfalls.
 
-**85 of 116 skills are free** and bundled in the Agent Skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
+**86 of 117 skills are free** and bundled in the Agent Skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
 
 ## ShipSwift Pro
 
@@ -75,9 +75,9 @@ signerlabs/shipswift-skills/
 ├── skills/
 │   └── shipswift/
 │       ├── SKILL.md                  # The skill (hand-written)
-│       └── references/               # GENERATED — 85 free skills + index.md
-│           ├── index.md              # Full catalog (116 skills, Pro rows marked)
-│           ├── animation/            # 43 skills
+│       └── references/               # GENERATED — 86 free skills + index.md
+│           ├── index.md              # Full catalog (117 skills, Pro rows marked)
+│           ├── animation/            # 44 skills
 │           ├── chart/                # 9 skills
 │           ├── component/            # 23 skills
 │           └── module/               # 10 free skills

@@ -36,7 +36,6 @@ iOS App
     |--- PhotosPicker (photo library)              |--- SWFaceTrackingOverlay (Canvas rendering)
     |--- Pinch-to-zoom + zoom slider               |--- Landmark toggle button
     |--- Shutter button + camera switch            |--- Shutter button + camera switch
-    |--- Close button                              |--- Close button
 
 Data Models
   SWFaceLandmarkRegion (enum) — 11 face region types
@@ -48,6 +47,10 @@ Data Models
 
 This module uses only Apple system frameworks. No third-party packages required.
 
+**Requires the free component-alert skill** (`SWAlert.swift`): `SWCameraView` reports camera errors through `SWAlertManager.shared` and expects `.swAlert()` on your root view. `SWFaceCameraView` and `SWCameraManager` do not use it.
+
+**Needs an `AccentColor` color set in your asset catalog** (Xcode's default app template has one): `SWCameraView` uses `.tint(.accent)`, which is Xcode's generated asset symbol for it, not a SwiftUI API.
+
 | Framework | Purpose |
 |-----------|---------|
 | `AVFoundation` | Camera session, device input/output, photo capture |
@@ -57,13 +60,13 @@ This module uses only Apple system frameworks. No third-party packages required.
 
 ## Implementation
 
-### File 1: SWFaceLandmark.swift
+### File 1: SWFaceLandmark+iOS.swift
 
 Face landmark data models for Vision framework regions.
 
 ```swift
 //
-//  SWFaceLandmark.swift
+//  SWFaceLandmark+iOS.swift
 //  ShipSwift
 //
 //  Face landmark data models for Vision framework regions.
@@ -118,13 +121,13 @@ struct SWFaceLandmarkGroup: Sendable {
 }
 ```
 
-### File 2: SWCameraManager.swift
+### File 2: SWCameraManager+iOS.swift
 
 Unified AVCaptureSession manager with photo capture, zoom control, and optional real-time Vision face landmark tracking.
 
 ```swift
 //
-//  SWCameraManager.swift
+//  SWCameraManager+iOS.swift
 //  ShipSwift
 //
 //  Unified AVCaptureSession manager with photo capture, zoom control,
@@ -455,7 +458,9 @@ final class SWCameraManager: NSObject, @unchecked Sendable {
         sessionQueue.async { [weak self] in
             guard let self else { return }
 
-            let newPosition: AVCaptureDevice.Position = self.cameraPosition == .front ? .back : .front
+            // Read the session-queue copy: cameraPosition is only updated later on the main thread,
+            // so a quick second tap would otherwise switch to the same camera again
+            let newPosition: AVCaptureDevice.Position = self._bgCameraPosition == .front ? .back : .front
 
             guard let newCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition) else {
                 return
@@ -540,25 +545,32 @@ final class SWCameraManager: NSObject, @unchecked Sendable {
 // MARK: - AVCapturePhotoCaptureDelegate
 
 extension SWCameraManager: AVCapturePhotoCaptureDelegate {
-    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+    /// Called on a background queue: decode the photo here, then deliver the result on the main thread
+    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         if error != nil {
-            DispatchQueue.main.async {
-                self.onError?(String(localized: "Photo capture failed"))
-            }
-            captureCompletion?(nil)
+            finishCapture(nil, errorMessage: String(localized: "Photo capture failed"))
             return
         }
 
         guard let imageData = photo.fileDataRepresentation(),
               let image = UIImage(data: imageData) else {
-            DispatchQueue.main.async {
-                self.onError?(String(localized: "Unable to process photo data"))
-            }
-            captureCompletion?(nil)
+            finishCapture(nil, errorMessage: String(localized: "Unable to process photo data"))
             return
         }
 
-        captureCompletion?(image)
+        finishCapture(image, errorMessage: nil)
+    }
+
+    /// Report the capture result on the main thread (the completion usually updates view state)
+    private nonisolated func finishCapture(_ image: UIImage?, errorMessage: String?) {
+        Task { @MainActor in
+            if let errorMessage {
+                self.onError?(errorMessage)
+            }
+            let completion = self.captureCompletion
+            self.captureCompletion = nil
+            completion?(image)
+        }
     }
 }
 
@@ -619,13 +631,13 @@ extension SWCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
 }
 ```
 
-### File 3: SWCameraView.swift
+### File 3: SWCameraView+iOS.swift
 
 Camera capture view with photo picker, pinch-to-zoom, and zoom slider.
 
 ```swift
 //
-//  SWCameraView.swift
+//  SWCameraView+iOS.swift
 //  ShipSwift
 //
 //  Camera capture view with photo picker and zoom control.
@@ -633,13 +645,25 @@ Camera capture view with photo picker, pinch-to-zoom, and zoom slider.
 //  pinch-to-zoom gesture, and zoom slider.
 //
 //  Usage:
-//    // 1. Present as a sheet with a @Binding UIImage
+//    // 1. Push it, or present it inside a NavigationStack that provides
+//    //    a close button (the view has no close button of its own)
 //    @State private var capturedImage: UIImage?
 //    @State private var showCamera = false
 //
+//    NavigationLink("Take Photo") {
+//        SWCameraView(image: $capturedImage)
+//    }
+//
 //    Button("Take Photo") { showCamera = true }
 //    .fullScreenCover(isPresented: $showCamera) {
-//        SWCameraView(image: $capturedImage)
+//        NavigationStack {
+//            SWCameraView(image: $capturedImage)
+//                .toolbar {
+//                    ToolbarItem(placement: .cancellationAction) {
+//                        Button("Close") { showCamera = false }
+//                    }
+//                }
+//        }
 //    }
 //
 //    // 2. The view auto-dismisses after capture or photo selection.
@@ -651,7 +675,6 @@ Camera capture view with photo picker, pinch-to-zoom, and zoom slider.
 //    //    - PhotosPicker for selecting from photo library
 //    //    - Pinch-to-zoom gesture and zoom slider
 //    //    - Front/back camera switching
-//    //    - Close button (top-left corner)
 //    //    - Unauthorized state with "Open Settings" button
 //
 //    // 4. Errors are shown via SWAlertManager.shared
@@ -702,22 +725,6 @@ struct SWCameraView: View {
                         controlBar
                     }
 
-                    // Top-left close button
-                    VStack {
-                        HStack {
-                            Button { dismiss() } label: {
-                                Image(systemName: "xmark")
-                                    .font(.title3)
-                                    .foregroundStyle(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(.black.opacity(0.4), in: Circle())
-                            }
-                            Spacer()
-                        }
-                        .padding(.leading, 16)
-                        .padding(.top, 8)
-                        Spacer()
-                    }
                 }
             } else {
                 unauthorizedView
@@ -911,13 +918,13 @@ class SWPreviewView: UIView {
 }
 ```
 
-### File 4: SWFaceCameraView.swift
+### File 4: SWFaceCameraView+iOS.swift
 
 Face camera view with real-time landmark overlay, configurable color schemes, and photo capture.
 
 ```swift
 //
-//  SWFaceCameraView.swift
+//  SWFaceCameraView+iOS.swift
 //  ShipSwift
 //
 //  Face camera view with real-time landmark overlay.
@@ -970,7 +977,6 @@ struct SWFaceCameraView: View {
     /// Landmark color scheme
     var landmarkColors: SWFaceLandmarkColors = .default
 
-    @Environment(\.dismiss) private var dismiss
     @State private var cameraManager = SWCameraManager(position: .front)
     @State private var isCapturing = false
     @State private var showLandmarks = true
@@ -1014,22 +1020,6 @@ struct SWFaceCameraView: View {
                         controlBar
                     }
 
-                    // Top-left close button
-                    VStack {
-                        HStack {
-                            Button { dismiss() } label: {
-                                Image(systemName: "xmark")
-                                    .font(.title3)
-                                    .foregroundStyle(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(.black.opacity(0.4), in: Circle())
-                            }
-                            Spacer()
-                        }
-                        .padding(.leading, 16)
-                        .padding(.top, 8)
-                        Spacer()
-                    }
                 }
             } else {
                 unauthorizedView
@@ -1276,10 +1266,12 @@ Without this key, the app will crash on first camera access attempt.
 
 Copy the files into your Xcode project in the following order (dependency order):
 
-1. `SWFaceLandmark.swift` -- data models, no dependencies
-2. `SWCameraManager.swift` -- depends on SWFaceLandmark
-3. `SWCameraView.swift` -- depends on SWCameraManager
-4. `SWFaceCameraView.swift` -- depends on SWCameraManager and SWFaceLandmark
+1. `SWFaceLandmark+iOS.swift` -- data models, no dependencies
+2. `SWCameraManager+iOS.swift` -- depends on SWFaceLandmark
+3. `SWCameraView+iOS.swift` -- depends on SWCameraManager and the component-alert skill (`SWAlertManager`)
+4. `SWFaceCameraView+iOS.swift` -- depends on SWCameraManager and SWFaceLandmark
+
+If your app also builds for macOS, limit these files to iOS in Build Phases > Compile Sources (the `+iOS` suffix marks them as iOS-only).
 
 ### 3. Wire Up Error Handling
 
@@ -1294,26 +1286,45 @@ cameraManager.onError = { message in
 
 ### 4. Present SWCameraView
 
+Neither camera view has a close button of its own, so give the user a way out: push the view with a `NavigationLink` (the back button closes it), or present it inside a `NavigationStack` with a close button in the toolbar. `SWCameraView` calls `dismiss()` after a capture or a library pick, which pops or dismisses it either way.
+
 ```swift
 @State private var capturedImage: UIImage?
 @State private var showCamera = false
 
 Button("Take Photo") { showCamera = true }
 .fullScreenCover(isPresented: $showCamera) {
-    SWCameraView(image: $capturedImage)
+    NavigationStack {
+        SWCameraView(image: $capturedImage)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { showCamera = false }
+                }
+            }
+    }
 }
 ```
 
 ### 5. Present SWFaceCameraView
+
+`SWFaceCameraView` stays on screen after a capture and hands each photo to `onCapture`, so close it yourself when you are done:
 
 ```swift
 @State private var showFaceCamera = false
 
 Button("Face Camera") { showFaceCamera = true }
 .fullScreenCover(isPresented: $showFaceCamera) {
-    SWFaceCameraView { capturedImage in
-        // handle the captured UIImage
-        processPhoto(capturedImage)
+    NavigationStack {
+        SWFaceCameraView { capturedImage in
+            // handle the captured UIImage
+            processPhoto(capturedImage)
+            showFaceCamera = false
+        }
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") { showFaceCamera = false }
+            }
+        }
     }
 }
 ```
@@ -1357,11 +1368,13 @@ Three built-in presets are available: `.default`, `.mono` (tech-feel cyan), and 
 
 ### Adjust Maximum Zoom
 
-The default maximum zoom is capped at 5x. To change this, modify the `maxZoom` calculation in `SWCameraManager.setupCamera()`:
+The default maximum zoom is capped at 5x. To change this, modify the `maxZoom` calculation in both `SWCameraManager.setupCamera()` and `SWCameraManager.switchCamera()` (the cap is reapplied whenever the camera switches):
 
 ```swift
 // Change 5.0 to your desired max (or remove the cap entirely)
 self.maxZoom = min(camera.activeFormat.videoMaxZoomFactor, 10.0)
+// ...and in switchCamera():
+self.maxZoom = min(newCamera.activeFormat.videoMaxZoomFactor, 10.0)
 ```
 
 ### Use SWCameraManager Standalone

@@ -1,7 +1,7 @@
 ---
 id: setting
 title: Settings View
-description: Pre-built settings page with app info section, account management, notification toggles, feedback/rating links, and legal links (iOS and macOS)
+description: Pre-built settings page with language switcher, share app, legal links, recommended apps, sign out / delete account with confirmation, and version info (iOS and macOS)
 tier: free
 tags: [settings, preferences, account, SwiftUI, configuration, delete account, restore purchases, App Review]
 ---
@@ -42,11 +42,17 @@ Key design decisions:
 
 ## Implementation
 
-### SWSettingView+iOS.swift / SWSettingView+macOS.swift
+Both files declare `SWSettingView`. In a multiplatform target, limit each one to its platform in **Build Phases → Compile Sources** (platform filter); an iOS-only app needs just `SWSettingView+iOS.swift`.
+
+> **Requires:** the **component-alert** skill (`SWAlertManager`) — used only when `isDemo: true`, to explain that language switching is disabled in the demo.
+
+### SWSettingView+iOS.swift
+
+A `List` inside its own `NavigationStack`, with confirmation alerts for sign-out and account deletion.
 
 ```swift
 //
-//  SWSettingView.swift
+//  SWSettingView+iOS.swift
 //  ShipSwift
 //
 //  Generic settings page template with language switching, share app, legal links,
@@ -76,6 +82,8 @@ Key design decisions:
 //    // 4. Language switching is based on @AppStorage("appLanguage"),
 //    //    pair with SWDateExtension and similar utilities for global English/Chinese switching.
 //
+//  Created by Wei Zhong on 3/1/26.
+//
 
 import SwiftUI
 
@@ -83,48 +91,62 @@ struct SWSettingView: View {
 
     // MARK: - State
 
+    var isDemo: Bool = false
+
     @AppStorage("appLanguage") private var appLanguage = "en"
+    @State private var selectedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
     @State private var showDeleteConfirmation = false
     @State private var showSignOutConfirmation = false
     @State private var isDeleting = false
     @State private var isSigningOut = false
-
+    
     // MARK: - Configuration (modify these values directly)
-
-    private let appStoreURL = URL(string: "https://apps.apple.com/app/id123456789")!
+    
+    private let appStoreURL = URL(string: "https://apps.apple.com/app/id6759209764")!
     private let termsURL = URL(string: "https://shipswift.app/terms")!
     private let privacyURL = URL(string: "https://shipswift.app/privacy")!
-
+    
     // App Store URLs (examples, replace with actual URLs)
     private let appStoreFullpack = "https://apps.apple.com/us/app/fullpack-packing-outfit/id6745692929"
     private let appStoreBrushmo = "https://apps.apple.com/us/app/brushmo/id6744569822"
+    private let appStoreLifebang = "https://apps.apple.com/us/app/lifebang/id6474886848"
     private let appStoreUtilityMax = "https://apps.apple.com/us/app/utilitymax%E6%95%88%E5%BA%A6%E5%AE%B6-%E7%BB%88%E8%BA%AB%E8%B4%A2%E5%8A%A1%E6%A8%A1%E6%8B%9F%E4%B8%8E%E9%80%80%E4%BC%91%E8%A7%84%E5%88%92%E5%99%A8/id6758595049"
     private let appStoreJourney = "https://apps.apple.com/us/app/journey-goal-tracker-diary/id6748666816"
     private let appStoreSmileMax = "https://apps.apple.com/us/app/smilemax/id6758947123"
-
+    
     /// App version number
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
-
+    
     /// App build number
     private var buildNumber: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
-
+    
     // MARK: - Body
-
+    
     var body: some View {
         NavigationStack {
             List {
                 // MARK: - General Settings
                 Section {
                     // Language switcher
-                    Picker("Language", selection: $appLanguage) {
+                    Picker("Language", selection: $selectedLanguage) {
                         Text("English").tag("en")
                         Text("简体中文").tag("zh-Hans")
                     }
-
+                    .onChange(of: selectedLanguage) { _, newValue in
+                        // The demo reset below fires onChange again; ignore it
+                        guard newValue != appLanguage else { return }
+                        if isDemo {
+                            selectedLanguage = appLanguage
+                            SWAlertManager.shared.show(.info, message: "UI Demo — language switching is not functional")
+                        } else {
+                            appLanguage = newValue
+                        }
+                    }
+                    
                     // Share App
                     ShareLink(item: appStoreURL) {
                         HStack {
@@ -135,7 +157,7 @@ struct SWSettingView: View {
                         }
                     }
                 }
-
+                
                 // MARK: - Legal
                 Section {
                     Link(destination: termsURL) {
@@ -147,7 +169,7 @@ struct SWSettingView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-
+                    
                     Link(destination: privacyURL) {
                         HStack {
                             Text("Privacy Policy")
@@ -158,7 +180,7 @@ struct SWSettingView: View {
                         }
                     }
                 }
-
+                
                 // MARK: - Recommended Apps
                 Section("Apps Built with ShipSwift") {
                     Link(destination: URL(string: appStoreSmileMax)!) {
@@ -169,6 +191,9 @@ struct SWSettingView: View {
                     }
                     Link(destination: URL(string: appStoreBrushmo)!) {
                         labelWithImage(.brushmoLogo, name: "Brushmo - Oral Health Companion")
+                    }
+                    Link(destination: URL(string: appStoreLifebang)!) {
+                        labelWithImage(.lifebangLogo, name: "Lifebang - Pro Cleaner")
                     }
                     Link(destination: URL(string: appStoreUtilityMax)!) {
                         labelWithImage(.utilityMaxLogo, name: "UtilityMax - Financial Simulator")
@@ -192,7 +217,7 @@ struct SWSettingView: View {
                         }
                     }
                     .disabled(isDeleting || isSigningOut)
-
+                    
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
@@ -206,7 +231,7 @@ struct SWSettingView: View {
                     }
                     .disabled(isDeleting || isSigningOut)
                 }
-
+                
                 // MARK: - Version Info
                 Section {
                     LabeledContent("Version") {
@@ -233,7 +258,7 @@ struct SWSettingView: View {
             }
         }
     }
-
+    
     // MARK: - Label With Image
 
     @ViewBuilder
@@ -250,6 +275,187 @@ struct SWSettingView: View {
     }
 
     // MARK: - Actions (replace with actual logic)
+    
+    private func signOut() {
+        isSigningOut = true
+        Task {
+            // TODO: Replace with actual sign-out logic
+            // await userManager.signOut()
+            try? await Task.sleep(for: .seconds(1))
+            isSigningOut = false
+        }
+    }
+    
+    private func deleteAccount() {
+        isDeleting = true
+        Task {
+            // TODO: Replace with actual account deletion logic
+            // try await userManager.deleteAccount()
+            try? await Task.sleep(for: .seconds(1))
+            isDeleting = false
+        }
+    }
+}
+```
+
+### SWSettingView+macOS.swift
+
+A native grouped `Form` with the same sections and configuration, using confirmation dialogs; show it in your own window or a `Settings` scene.
+
+```swift
+//
+//  SWSettingView+macOS.swift
+//  ShipSwift
+//
+//  macOS-native settings view using Form with grouped style.
+//  Replaces the iOS List-based layout with native macOS Form controls,
+//  LabeledContent rows, and macOS-appropriate link presentation.
+//
+//  Created by Wei Zhong on 3/7/26.
+//
+
+import SwiftUI
+
+struct SWSettingView: View {
+
+    // MARK: - State
+
+    var isDemo: Bool = false
+
+    @AppStorage("appLanguage") private var appLanguage = "en"
+    @State private var selectedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+    @State private var showDeleteConfirmation = false
+    @State private var showSignOutConfirmation = false
+    @State private var isDeleting = false
+    @State private var isSigningOut = false
+
+    // MARK: - Configuration
+
+    private let appStoreURL = URL(string: "https://apps.apple.com/app/id6759209764")!
+    private let termsURL = URL(string: "https://shipswift.app/terms")!
+    private let privacyURL = URL(string: "https://shipswift.app/privacy")!
+
+    private let appStoreFullpack    = URL(string: "https://apps.apple.com/us/app/fullpack-packing-outfit/id6745692929")!
+    private let appStoreBrushmo     = URL(string: "https://apps.apple.com/us/app/brushmo/id6744569822")!
+    private let appStoreLifebang    = URL(string: "https://apps.apple.com/us/app/lifebang/id6474886848")!
+    private let appStoreJourney     = URL(string: "https://apps.apple.com/us/app/journey-goal-tracker-diary/id6748666816")!
+    private let appStoreSmileMax    = URL(string: "https://apps.apple.com/us/app/smilemax/id6758947123")!
+    private let appStoreUtilityMax  = URL(string: "https://apps.apple.com/us/app/utilitymax/id6758595049")!
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }
+    private var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        Form {
+            // General
+            Section("General") {
+                Picker("Language", selection: $selectedLanguage) {
+                    Text("English").tag("en")
+                    Text("简体中文").tag("zh-Hans")
+                }
+                .onChange(of: selectedLanguage) { _, newValue in
+                    // The demo reset below fires onChange again; ignore it
+                    guard newValue != appLanguage else { return }
+                    if isDemo {
+                        selectedLanguage = appLanguage
+                        SWAlertManager.shared.show(.info, message: "UI Demo — language switching is not functional")
+                    } else {
+                        appLanguage = newValue
+                    }
+                }
+
+                ShareLink("Share App", item: appStoreURL)
+                    .buttonStyle(.plain)
+            }
+
+            // Legal
+            Section("Legal") {
+                Link("Terms of Service", destination: termsURL)
+                Link("Privacy Policy", destination: privacyURL)
+            }
+
+            // Recommended Apps
+            Section("Apps Built with ShipSwift") {
+                appRow(.smileMaxLogo,      name: "SmileMax",       url: appStoreSmileMax)
+                appRow(.fullpackLogo,      name: "Fullpack",       url: appStoreFullpack)
+                appRow(.brushmoLogo,       name: "Brushmo",        url: appStoreBrushmo)
+                appRow(.lifebangLogo,      name: "Lifebang",       url: appStoreLifebang)
+                appRow(.utilityMaxLogo,    name: "UtilityMax",     url: appStoreUtilityMax)
+                appRow(.journeyLogo,       name: "Journey",        url: appStoreJourney)
+            }
+
+            // Account
+            Section("Account") {
+                Button {
+                    showSignOutConfirmation = true
+                } label: {
+                    if isSigningOut {
+                        Label("Signing Out…", systemImage: "arrow.right.square")
+                    } else {
+                        Label("Sign Out", systemImage: "arrow.right.square")
+                    }
+                }
+                .disabled(isDeleting || isSigningOut)
+                .buttonStyle(.plain)
+
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    if isDeleting {
+                        Label("Deleting…", systemImage: "trash")
+                    } else {
+                        Label("Delete Account", systemImage: "trash")
+                    }
+                }
+                .disabled(isDeleting || isSigningOut)
+                .buttonStyle(.plain)
+            }
+
+            // Version
+            Section {
+                LabeledContent("Version", value: "v\(appVersion) (\(buildNumber))")
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Settings")
+        .confirmationDialog("Sign Out?", isPresented: $showSignOutConfirmation, titleVisibility: .visible) {
+            Button("Sign Out", role: .destructive) { signOut() }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Delete Account?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { deleteAccount() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone. All your data will be permanently deleted.")
+        }
+    }
+
+    // MARK: - App Row
+
+    private func appRow(_ image: ImageResource, name: String, url: URL) -> some View {
+        Link(destination: url) {
+            HStack(spacing: 10) {
+                Image(image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                Text(name)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Actions
 
     private func signOut() {
         isSigningOut = true
@@ -270,10 +476,6 @@ struct SWSettingView: View {
             isDeleting = false
         }
     }
-}
-
-#Preview {
-    SWSettingView()
 }
 ```
 
@@ -330,12 +532,7 @@ Section {
         }
     }
 
-    Button {
-        let email = "support@yourapp.com"
-        if let url = URL(string: "mailto:\(email)") {
-            UIApplication.shared.open(url)
-        }
-    } label: {
+    Link(destination: URL(string: "mailto:support@yourapp.com")!) {
         HStack {
             Text("Send Feedback")
             Spacer()
@@ -364,8 +561,12 @@ private func signOut() {
 private func deleteAccount() {
     isDeleting = true
     Task {
-        try await userManager.deleteAccount()
-        isDeleting = false
+        defer { isDeleting = false }
+        do {
+            try await userManager.deleteAccount()
+        } catch {
+            SWAlertManager.shared.show(.error, message: error.localizedDescription)
+        }
     }
 }
 ```
@@ -406,7 +607,7 @@ For an Apple-linked account, `deleteAccount()` must first re-run Sign in with Ap
 Modify the `Picker` to add or remove languages:
 
 ```swift
-Picker("Language", selection: $appLanguage) {
+Picker("Language", selection: $selectedLanguage) {
     Text("English").tag("en")
     Text("简体中文").tag("zh-Hans")
     Text("日本語").tag("ja")

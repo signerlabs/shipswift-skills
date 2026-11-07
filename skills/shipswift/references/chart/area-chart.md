@@ -66,9 +66,8 @@ A horizontally scrollable area chart built on Swift Charts (AreaMark). Supports 
 //    - title: String?                               — Optional title
 //
 //  Notes:
-//    - Appear animation: via chartPlotStyle, a mask rectangle expands from left to right
-//      (easeOut 1.2s, 0.2s delay) only on the plot area, so axes/labels/legend stay visible.
-//      All data points are always rendered so axes stay stable.
+//    - Appear animation: values grow from 0 to their targets (easeOut 1.2s, 0.2s delay).
+//      The Y-axis domain is computed from the real data, so axes stay stable while animating.
 //
 //  Created by Wei Zhong on 2/13/26.
 //
@@ -313,7 +312,7 @@ extension SWAreaChart where CategoryType == String {
 let calendar = Calendar.current
 let today = calendar.startOfDay(for: Date())
 
-let trafficData: [SWAreaChart<String>.DataPoint] = (0..<14).flatMap { dayOffset in
+let trafficData: [SWAreaChart<String>.DataPoint] = (0..<14).flatMap { dayOffset -> [SWAreaChart<String>.DataPoint] in
     let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
     return [
         .init(date: date, value: Double.random(in: 100...300), category: "Organic"),
@@ -332,7 +331,7 @@ SWAreaChart(
 ### Stacked Area Chart
 
 ```swift
-let revenueData: [SWAreaChart<String>.DataPoint] = (0..<10).flatMap { dayOffset in
+let revenueData: [SWAreaChart<String>.DataPoint] = (0..<10).flatMap { dayOffset -> [SWAreaChart<String>.DataPoint] in
     let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
     return [
         .init(date: date, value: Double.random(in: 40...120), category: "Product A"),

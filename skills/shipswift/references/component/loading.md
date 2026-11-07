@@ -138,7 +138,8 @@ extension View {
 ## Usage
 
 ```swift
-// 1. Register your pages in the SWLoadingPage enum:
+// 1. Register your pages by editing the SWLoadingPage enum inside SWLoading.swift
+//    (change it in place; do not declare a second SWLoadingPage elsewhere):
 enum SWLoadingPage: String {
     case home
     case settings

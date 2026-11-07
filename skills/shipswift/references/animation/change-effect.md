@@ -195,6 +195,7 @@ private struct SWSprayModifier<Trigger: Equatable>: ViewModifier {
     let colors: [Color]
 
     @State private var particles: [SWSprayParticle] = []
+    @State private var bursts = 0
 
     private let lifetime = 0.9
     private let gravity = 480.0
@@ -238,6 +239,13 @@ private struct SWSprayModifier<Trigger: Equatable>: ViewModifier {
             .onChange(of: trigger) {
                 fire()
             }
+            .task(id: bursts) {
+                // Pause the frame clock once the last burst has faded out.
+                guard bursts > 0 else { return }
+                try? await Task.sleep(for: .seconds(lifetime + 0.1))
+                guard !Task.isCancelled else { return }
+                particles.removeAll()
+            }
     }
 
     private func fire() {
@@ -261,6 +269,7 @@ private struct SWSprayModifier<Trigger: Equatable>: ViewModifier {
         particles = particles.filter {
             now.timeIntervalSince($0.birth) < lifetime
         } + fresh
+        bursts += 1
     }
 }
 
@@ -292,6 +301,7 @@ private struct SWRiseModifier<Trigger: Equatable>: ViewModifier {
     let color: Color
 
     @State private var items: [SWRiseItem] = []
+    @State private var bursts = 0
 
     private let lifetime = 1.1
     private let riseDistance = 60.0
@@ -338,6 +348,14 @@ private struct SWRiseModifier<Trigger: Equatable>: ViewModifier {
                     drift: .random(in: -12...12),
                     wobblePhase: .random(in: 0...(2 * .pi))
                 )]
+                bursts += 1
+            }
+            .task(id: bursts) {
+                // Pause the frame clock once the last floater has faded out.
+                guard bursts > 0 else { return }
+                try? await Task.sleep(for: .seconds(lifetime + 0.1))
+                guard !Task.isCancelled else { return }
+                items.removeAll()
             }
     }
 }

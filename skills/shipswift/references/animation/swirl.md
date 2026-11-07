@@ -29,8 +29,8 @@ SWAnimation/SWMetal/
 //  SWSwirl.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `colorEffect`. Animated bands of color twisting
-//  and bending into spirals, arcs, and flowing circular patterns.
+//  Animated bands of color twisting and bending into spirals, arcs, and
+//  flowing circular patterns, rendered via a SwiftUI Metal `colorEffect`.
 //
 //  Algorithm: polar-coordinate angle multiplied by `bandCount` and
 //  spun by time; a `pow(length, -twist)` radial term bends straight
@@ -292,7 +292,7 @@ private struct SWSwirlControlled: View {
                 scale: $scale,
                 speed: $speed
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -349,21 +349,21 @@ private struct SWSwirlControlsSheet: View {
                 }
 
                 Section("Shape") {
-                    SliderRow(label: "Bands",       value: $bandCount,  range: 0...15,    step: 1)
-                    SliderRow(label: "Twist",       value: $twist,      range: 0...1,     step: 0.01)
-                    SliderRow(label: "Center",      value: $center,     range: 0...1,     step: 0.01)
-                    SliderRow(label: "Proportion",  value: $proportion, range: 0...1,     step: 0.01)
-                    SliderRow(label: "Softness",    value: $softness,   range: 0...1,     step: 0.01)
-                    SliderRow(label: "Scale",       value: $scale,      range: 0.05...4,  step: 0.05)
+                    SWSwirlSliderRow(label: "Bands",       value: $bandCount,  range: 0...15,    step: 1)
+                    SWSwirlSliderRow(label: "Twist",       value: $twist,      range: 0...1,     step: 0.01)
+                    SWSwirlSliderRow(label: "Center",      value: $center,     range: 0...1,     step: 0.01)
+                    SWSwirlSliderRow(label: "Proportion",  value: $proportion, range: 0...1,     step: 0.01)
+                    SWSwirlSliderRow(label: "Softness",    value: $softness,   range: 0...1,     step: 0.01)
+                    SWSwirlSliderRow(label: "Scale",       value: $scale,      range: 0.05...4,  step: 0.05)
                 }
 
                 Section("Noise") {
-                    SliderRow(label: "Strength",    value: $noise,          range: 0...1, step: 0.01)
-                    SliderRow(label: "Frequency",   value: $noiseFrequency, range: 0...1, step: 0.01)
+                    SWSwirlSliderRow(label: "Strength",    value: $noise,          range: 0...1, step: 0.01)
+                    SWSwirlSliderRow(label: "Frequency",   value: $noiseFrequency, range: 0...1, step: 0.01)
                 }
 
                 Section("Motion") {
-                    SliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                    SWSwirlSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
                 }
             }
             .navigationTitle("Swirl")
@@ -379,7 +379,7 @@ private struct SWSwirlControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWSwirlSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -562,8 +562,8 @@ namespace SWSwirlImpl {
              snoise(15.0 * pow(noiseFrequency, 2.0) * uv);
 
     // Mask out a tiny disc at the origin (the `atan2(0,0)` singularity).
-    // A 0.2 cutoff would leave a visible black hole; we shrink it to
-    // 0.005 so the swirl fills every visible pixel.
+    // Hard-coding 0.2 here would leave a visible black hole; we shrink
+    // it to 0.005 so the swirl fills every visible pixel.
     float lPosTwist = pow(l, twist);
     float holeCutoff = 0.005;
     float mid = smoothstep(holeCutoff, holeCutoff + 0.8 * center, lPosTwist);

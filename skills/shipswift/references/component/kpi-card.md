@@ -382,6 +382,7 @@ LazyVGrid(
 // 5. Animated value updates (the .numericText() content transition is built-in)
 struct DashboardView: View {
     @State private var revenue: Int = 1234
+    private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
     var body: some View {
         SWKPICard(
             title: "Revenue",

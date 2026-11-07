@@ -320,7 +320,7 @@ extension SWBarChart where CategoryType == String {
 let calendar = Calendar.current
 let today = calendar.startOfDay(for: Date())
 
-let salesData: [SWBarChart<String>.DataPoint] = (0..<10).flatMap { dayOffset in
+let salesData: [SWBarChart<String>.DataPoint] = (0..<10).flatMap { dayOffset -> [SWBarChart<String>.DataPoint] in
     let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
     return [
         .init(date: date, value: Double.random(in: 50...150), category: "Online"),
@@ -335,10 +335,10 @@ SWBarChart(
 )
 ```
 
-### Stacked Bar Chart with Value Labels
+### Stacked Bar Chart
 
 ```swift
-let stackedData: [SWBarChart<String>.DataPoint] = (0..<7).flatMap { dayOffset in
+let stackedData: [SWBarChart<String>.DataPoint] = (0..<7).flatMap { dayOffset -> [SWBarChart<String>.DataPoint] in
     let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
     return [
         .init(date: date, value: Double.random(in: 30...80), category: "Food"),

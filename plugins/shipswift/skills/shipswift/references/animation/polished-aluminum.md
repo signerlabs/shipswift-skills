@@ -50,9 +50,9 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
 //
 //  Usage:
-//    // Default — polished metal, internal animation only
+//    // Default — polished metal, still until tilted
 //    SWPolishedAluminum {
-//        Image("messi").resizable().scaledToFill()
+//        Image("photo").resizable().scaledToFill()
 //    }
 //
 //    // Tilt-driven from a DragGesture
@@ -67,13 +67,15 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //            usually drag-driven (default `.zero`).
 //    - intensity: Blend of the metal finish over the source in `0...1`
 //                 (default `0.85`).
-//    - speed: Multiplier on the internal animation time (default `1.0`).
+//    - speed: Kept for API symmetry with the foil family; the finish has
+//             no time-driven motion, so it has no visible effect
+//             (default `1.0`).
 //    - showsControls: Attach a gear `ToolbarItem` that opens a live-tuning
 //                     sheet (default `false`).
 //
-//  Note: `time` is wired through for API symmetry with the foil family;
-//  the metal finish is driven mainly by `tilt`, so it reads as a still,
-//  reflective surface that comes alive on drag.
+//  Note: the shader's `time` argument is unused — the metal finish is
+//  driven entirely by `tilt`, so it reads as a still, reflective surface
+//  that comes alive on drag (and costs nothing while still).
 //
 
 import SwiftUI
@@ -87,7 +89,8 @@ struct SWPolishedAluminum<Content: View>: View {
     /// Blend of the metal finish over the source in 0...1.
     var intensity: Float = 0.85
 
-    /// Multiplier on the internal animation time.
+    /// Kept for API symmetry with the foil family; the finish has no
+    /// time-driven motion, so it has no visible effect.
     var speed: Float = 1.0
 
     /// When `true`, attaches a gear `ToolbarItem` that opens a live-tuning sheet.
@@ -124,27 +127,125 @@ private struct SWPolishedAluminumRenderer<Content: View>: View {
     let initial: SWPolishedAluminum<Content>
     let content: Content
 
-    @State private var start: Date = .now
+    var body: some View {
+        // The finish is driven by `tilt` alone (the shader's `time` argument
+        // is unused), so there is no `TimelineView` — the effect re-renders
+        // only when `tilt` / `intensity` change.
+        content.layerEffect(
+            ShaderLibrary.swPolishedAluminum(
+                .boundingRect,
+                .float2(Float(initial.tilt.width), Float(initial.tilt.height)),
+                .float(0),
+                .float(initial.intensity)
+            ),
+            maxSampleOffset: .zero
+        )
+    }
+}
+
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWPolishedAluminumControlled<Content: View>: View {
+    @State private var tiltX: Float
+    @State private var tiltY: Float
+    @State private var intensity: Float
+    @State private var speed: Float
+
+    @State private var showSheet = false
+
+    private let content: Content
+
+    init(initial: SWPolishedAluminum<Content>, content: Content) {
+        _tiltX     = State(initialValue: Float(initial.tilt.width))
+        _tiltY     = State(initialValue: Float(initial.tilt.height))
+        _intensity = State(initialValue: initial.intensity)
+        _speed     = State(initialValue: initial.speed)
+        self.content = content
+    }
 
     var body: some View {
-        TimelineView(.animation) { ctx in
-            let elapsed = Float(ctx.date.timeIntervalSince(start)) * initial.speed
-            content.layerEffect(
-                ShaderLibrary.swPolishedAluminum(
-                    .boundingRect,
-                    .float2(Float(initial.tilt.width), Float(initial.tilt.height)),
-                    .float(elapsed),
-                    .float(initial.intensity)
-                ),
-                maxSampleOffset: .zero
+        SWPolishedAluminumRenderer(
+            initial: SWPolishedAluminum(
+                tilt: CGSize(width: CGFloat(tiltX), height: CGFloat(tiltY)),
+                intensity: intensity,
+                speed: speed
+            ) { content },
+            content: content
+        )
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Polished Aluminum Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWPolishedAluminumControlsSheet(
+                tiltX: $tiltX,
+                tiltY: $tiltY,
+                intensity: $intensity
             )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
 }
 
-// (Optional `SWPolishedAluminumControlled` + `SWPolishedAluminumControlsSheet`
-// provide a gear ToolbarItem and a Form-based live-tuning sheet. Omit them in
-// production builds; the renderer above is everything you need to ship.)
+// MARK: - Controls Sheet
+
+private struct SWPolishedAluminumControlsSheet: View {
+    @Binding var tiltX: Float
+    @Binding var tiltY: Float
+    @Binding var intensity: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Tilt") {
+                    SWPolishedAluminumSliderRow(label: "Tilt X", value: $tiltX, range: -1...1, step: 0.01)
+                    SWPolishedAluminumSliderRow(label: "Tilt Y", value: $tiltY, range: -1...1, step: 0.01)
+                }
+                Section("Metal") {
+                    SWPolishedAluminumSliderRow(label: "Intensity", value: $intensity, range: 0...1, step: 0.01)
+                }
+            }
+            .navigationTitle("Polished Aluminum")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWPolishedAluminumSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWPolishedAluminum.metal
@@ -347,9 +448,9 @@ static half3 swAlu_blendScreen(half3 base, half3 blend) {
 ## Usage
 
 ```swift
-// Default — polished metal, internal animation only
+// Default — polished metal, still until tilted
 SWPolishedAluminum {
-    Image("messi").resizable().scaledToFill()
+    Image("photo").resizable().scaledToFill()
 }
 .frame(width: 250, height: 350)
 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -377,7 +478,7 @@ SWPolishedAluminum(tilt: tilt, intensity: 0.85) { cardArtwork }
 |---|---|---|---|---|
 | `tilt` | `CGSize` | `.zero` | ~ -1…1 per axis | Light/parallax direction, usually drag-driven |
 | `intensity` | `Float` | `0.85` | 0…1 | Blend of the metal finish over the source — at 1 the metal nearly replaces the art |
-| `speed` | `Float` | `1.0` | 0…3 | Multiplier on the internal animation time |
+| `speed` | `Float` | `1.0` | — | Kept for API symmetry with the foil family; the finish has no time-driven motion, so it has no visible effect |
 | `showsControls` | `Bool` | `false` | — | Demo-only gear ToolbarItem; requires an enclosing `NavigationStack` |
 
 ## Integration Checklist
@@ -390,7 +491,7 @@ SWPolishedAluminum(tilt: tilt, intensity: 0.85) { cardArtwork }
 
 ## Notes / Gotchas
 
-- `time` is plumbed through for API symmetry with the rest of the foil family, but the look is driven almost entirely by `tilt` — with `tilt == .zero` the finish is essentially static. Provide a tilt source if you want motion.
+- The shader's `time` argument is unused — the look is driven entirely by `tilt`, so with a fixed tilt the finish is static. There is no `TimelineView`: the layer re-renders only when `tilt` or `intensity` change, so a still card costs nothing per frame. Provide a tilt source if you want motion.
 - The metal color ramp (cyan / silver / purple) is baked into the shader, not parameterized. Edit the `silver` / `darkSilver` / `cyan` / `purple` constants in the `.metal` file to recolor the finish.
 - The four helpers (`swAlu_*`) are vendored from ShaderKit and prefixed to avoid duplicate-symbol collisions when several SW Metal files coexist in one shader library. Keep the prefix if you adapt them.
 - `maxSampleOffset` is `.zero` (the shader reads only the pixel under `position`). Do not raise it.

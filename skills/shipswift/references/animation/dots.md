@@ -201,10 +201,171 @@ private struct SWDotsRenderer: View {
     }
 }
 
-// (Optional `SWDotsControlled` + `SWDotsControlsSheet` provide a gear
-// ToolbarItem and a Form-based live-tuning sheet. The sheet hides
-// amplitude / depthFade / horizon when style is flat. Omit them in
-// production builds.)
+// MARK: - Controlled Wrapper (gear button + live sheet)
+
+private struct SWDotsControlled: View {
+    @State private var style: SWDotsStyle
+    @State private var tint: Color
+    @State private var background: Color
+    @State private var speed: Float
+    @State private var brightness: Float
+    @State private var dotSize: Float
+    @State private var gridDensity: Float
+    @State private var patternScale: Float
+    @State private var amplitude: Float
+    @State private var depthFade: Float
+    @State private var vignette: Float
+    @State private var horizon: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWDots) {
+        _style        = State(initialValue: initial.style)
+        _tint         = State(initialValue: initial.tint)
+        _background   = State(initialValue: initial.background)
+        _speed        = State(initialValue: initial.speed)
+        _brightness   = State(initialValue: initial.brightness)
+        _dotSize      = State(initialValue: initial.dotSize)
+        _gridDensity  = State(initialValue: initial.gridDensity)
+        _patternScale = State(initialValue: initial.patternScale)
+        _amplitude    = State(initialValue: initial.amplitude)
+        _depthFade    = State(initialValue: initial.depthFade)
+        _vignette     = State(initialValue: initial.vignette)
+        _horizon      = State(initialValue: initial.horizon)
+    }
+
+    var body: some View {
+        SWDotsRenderer(
+            style: style,
+            tint: tint,
+            background: background,
+            speed: speed,
+            brightness: brightness,
+            dotSize: dotSize,
+            gridDensity: gridDensity,
+            patternScale: patternScale,
+            amplitude: amplitude,
+            depthFade: depthFade,
+            vignette: vignette,
+            horizon: horizon
+        )
+        .ignoresSafeArea()
+        .toolbar {
+            // Native toolbar item — sits in the navigation bar of the
+            // enclosing `NavigationStack`, so hit-testing is handled by
+            // UIKit/AppKit and the button is never occluded by the bar.
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Dots Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWDotsControlsSheet(
+                style: $style,
+                tint: $tint,
+                background: $background,
+                speed: $speed,
+                brightness: $brightness,
+                dotSize: $dotSize,
+                gridDensity: $gridDensity,
+                patternScale: $patternScale,
+                amplitude: $amplitude,
+                depthFade: $depthFade,
+                vignette: $vignette,
+                horizon: $horizon
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWDotsControlsSheet: View {
+    @Binding var style: SWDotsStyle
+    @Binding var tint: Color
+    @Binding var background: Color
+    @Binding var speed: Float
+    @Binding var brightness: Float
+    @Binding var dotSize: Float
+    @Binding var gridDensity: Float
+    @Binding var patternScale: Float
+    @Binding var amplitude: Float
+    @Binding var depthFade: Float
+    @Binding var vignette: Float
+    @Binding var horizon: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Style") {
+                    Picker("Style", selection: $style) {
+                        ForEach(SWDotsStyle.allCases) { s in
+                            Text(s.displayName).tag(s)
+                        }
+                    }
+                }
+
+                Section("Colors") {
+                    ColorPicker("Dot Color", selection: $tint, supportsOpacity: false)
+                    ColorPicker("Background", selection: $background, supportsOpacity: false)
+                }
+
+                Section("Sliders") {
+                    SWDotsSliderRow(label: "Speed",         value: $speed,        range: 0...3,   step: 0.05)
+                    SWDotsSliderRow(label: "Brightness",    value: $brightness,   range: 0...3,   step: 0.05)
+                    SWDotsSliderRow(label: "Dot Size",      value: $dotSize,      range: 0.2...3, step: 0.05)
+                    SWDotsSliderRow(label: "Grid Density",  value: $gridDensity,  range: 0.3...3, step: 0.05)
+                    SWDotsSliderRow(label: "Pattern Scale", value: $patternScale, range: 0.2...3, step: 0.05)
+                    SWDotsSliderRow(label: "Vignette",      value: $vignette,     range: 0...3,   step: 0.05)
+
+                    // Hidden for flat-grid styles whose shaders ignore these.
+                    if style.is3D {
+                        SWDotsSliderRow(label: "Wave Amplitude", value: $amplitude, range: 0...3,      step: 0.05)
+                        SWDotsSliderRow(label: "Depth Fade",     value: $depthFade, range: 0...3,      step: 0.05)
+                        SWDotsSliderRow(label: "Horizon",        value: $horizon,   range: -1.0...0.4, step: 0.01)
+                    }
+                }
+            }
+            .navigationTitle("Dots Controls")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWDotsSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWDotsWavy.metal (3D style)
@@ -606,7 +767,9 @@ static float swDotsStandingHeight(float x, float z, float t,
 
     // Wave-aware Z sweep — see SWDotsWavy.metal for the derivation.
     // `yampBound` here is the peak |Y| the standing-wave height function
-    // can produce (~0.13 at amplitude=1).
+    // can produce (~0.13 at amplitude=1). Replaces a fixed ±dj window
+    // that dropped cells (black holes) once gridDensity or amplitude
+    // grew past the hardcoded radius.
     float gridSize = 0.034 / max(gridDensity, 0.01);
     const float cellZmax = 9.1;
     float jMaxAbsolute = cellZmax / gridSize;
@@ -904,6 +1067,6 @@ SWDots(style: .snake, gridDensity: 1.8, brightness: 0.7)
 - **Ocean style ships a baked-in cool-water tint** `(0.92, 0.97, 1.0)` multiplied into the dot color so the field always reads as "sea" even with neutral user tints — intentional and part of the ocean style's identity.
 - **`SWDotsWavy.metal` contains an important `dampEst` correction:** the damping factor must be evaluated at the smallest possible cell Z in the candidate range (cells lifted most by the wave), not at `Z0 = 1/yFromHorizon`. An older formula used `Z0 * 0.85` as a fudge factor — at high amplitude (≥ ~0.68) crest cells fell outside the candidate Z range and appeared as black holes at the peak. Preserve this correction if porting.
 - **Wavy also stretches the halo to span `pitchScreenX * 0.5`:** at high amplitude crests live at small cellZ where the X-pitch grows past the halo's reach, so consecutive crest dots are separated by black gaps that read as a "hole at the top of the wave". The `max()` keeps the halo unchanged for farther cells.
-- The 4 flat styles (`flow`, `plasma`, `snake` — and the unified-signature `horizon`/`amplitude`/`depthFade` trailing args) explicitly cast unused parameters with `(void)x;` to make the "unused on purpose" decision explicit. Do not remove these — they document the unified call site.
+- The 3 flat styles (`flow`, `plasma`, `snake` — and the unified-signature `horizon`/`amplitude`/`depthFade` trailing args) explicitly cast unused parameters with `(void)x;` to make the "unused on purpose" decision explicit. Do not remove these — they document the unified call site.
 - When `showsControls` is `true`, the values passed via the initializer become the *initial* values of the live-tweakable state; subsequent changes from the parent are ignored.
 - When `showsControls` is `true`, the gear button is a native `ToolbarItem` (placement `.primaryAction`). It requires the host view to be inside a `NavigationStack` — bare `#Preview` should wrap the call site with `NavigationStack { … }`.

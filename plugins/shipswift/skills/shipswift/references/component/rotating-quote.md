@@ -95,10 +95,11 @@ struct SWRotatingQuote: View {
                 }
             }
             .opacity(0)
+            .accessibilityHidden(true)
 
             // Actual displayed content
             VStack(alignment: .leading) {
-                Text(quotes[safe: currentTextIndex] ?? quotes[0])
+                Text(quotes[safe: currentTextIndex] ?? quotes.first ?? "")
                     .font(quoteFont)
                     .contentTransition(.numericText())
 
@@ -124,7 +125,7 @@ struct SWRotatingQuote: View {
     private var longestQuote: LocalizedStringResource {
         quotes.max { quote1, quote2 in
             String(localized: quote1).count < String(localized: quote2).count
-        } ?? quotes[0]
+        } ?? ""
     }
 
     // MARK: - Timer Management

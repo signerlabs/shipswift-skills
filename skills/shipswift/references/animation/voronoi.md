@@ -29,10 +29,10 @@ SWAnimation/SWMetal/
 //  SWVoronoi.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `colorEffect`. Anti-aliased animated Voronoi pattern
-//  with smooth customizable edges, up to 5 cell colors in a
-//  step-discretized ramp, optional radial inner glow, and explicit gap
-//  border between cells.
+//  Animated Voronoi pattern rendered via a SwiftUI Metal `colorEffect`.
+//  Anti-aliased cells with smooth customizable edges, up to 5 cell colors
+//  in a step-discretized ramp, optional radial inner glow, and explicit
+//  gap border between cells.
 //
 //  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
 //  `Shader`/`ShaderFunction`, Metal `stitchable`).
@@ -235,7 +235,7 @@ private struct SWVoronoiControlled: View {
                 glow: $glow,
                 stepsPerColor: $stepsPerColor
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -277,15 +277,15 @@ private struct SWVoronoiControlsSheet: View {
                 }
 
                 Section("Cells") {
-                    SliderRow(label: "Density",    value: $scale,         range: 0.3...5,  step: 0.05)
-                    SliderRow(label: "Distortion", value: $distortion,    range: 0...0.5,  step: 0.01)
-                    SliderRow(label: "Gap",        value: $gap,           range: 0...0.1,  step: 0.001)
-                    SliderRow(label: "Glow",       value: $glow,          range: 0...1,    step: 0.01)
-                    SliderRow(label: "Steps",      value: $stepsPerColor, range: 1...3,    step: 1)
+                    SWVoronoiSliderRow(label: "Density",    value: $scale,         range: 0.3...5,  step: 0.05)
+                    SWVoronoiSliderRow(label: "Distortion", value: $distortion,    range: 0...0.5,  step: 0.01)
+                    SWVoronoiSliderRow(label: "Gap",        value: $gap,           range: 0...0.1,  step: 0.001)
+                    SWVoronoiSliderRow(label: "Glow",       value: $glow,          range: 0...1,    step: 0.01)
+                    SWVoronoiSliderRow(label: "Steps",      value: $stepsPerColor, range: 1...3,    step: 1)
                 }
 
                 Section("Motion") {
-                    SliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                    SWVoronoiSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
                 }
             }
             .navigationTitle("Voronoi")
@@ -301,7 +301,7 @@ private struct SWVoronoiControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWVoronoiSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -352,13 +352,13 @@ private struct SliderRow: View {
 //  SWVoronoi.metal
 //  ShipSwift
 //
-//  Stitchable SwiftUI colorEffect. Anti-aliased animated Voronoi
-//  pattern with smooth, customizable edges; up to 5 cell colors in a
-//  step-discretized ramp, plus radial inner glow and explicit gap
+//  Stitchable SwiftUI colorEffect — voronoi. Anti-aliased animated
+//  Voronoi pattern with smooth, customizable edges; up to 5 cell colors
+//  in a step-discretized ramp, plus radial inner glow and explicit gap
 //  border between cells.
 //
-//  A pure 2-channel hash function drives the per-cell randomizer so no
-//  auxiliary texture binding is needed.
+//  The per-cell randomizer (`randomGB`) uses a pure 2-channel hash
+//  function so no auxiliary texture binding is needed.
 //
 //  Paired with: SWVoronoi.swift
 //  Entry point: `swVoronoi` — invoked via SwiftUI `.colorEffect(...)`.
@@ -461,8 +461,8 @@ static float4 swV_voronoi(float2 x, float time, float distortion) {
     float t = time * speed;
     float4 v = swV_voronoi(uv, t, saturate(distortion));
 
-    // Palette mixer — the first assignment is overwritten; kept
-    // intentionally so the two-line form stays explicit.
+    // Palette mixer — two-line idiom where the first assignment
+    // is overwritten; preserved for parity.
     float shape = saturate(v.w);
     int countI = clamp(int(colorsCount + 0.5), 1, 5);
     float countF = float(countI);

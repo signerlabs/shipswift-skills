@@ -12,7 +12,7 @@ Inline video component for showcase sections with a thumbnail poster and a glass
 
 ## Features
 
-- First-frame thumbnail auto-generated via `AVAssetImageGenerator`
+- First-frame poster: an `AVPlayerLayer` paused at time 0 (no separate thumbnail generation)
 - Fullscreen uses native `AVKit.VideoPlayer` (controls, AirPlay, PiP)
 - Playback position preserved across open/close cycles
 - Silent-switch-proof audio via `AVAudioSession(.playback)`
@@ -26,13 +26,25 @@ import AVKit
 
 public struct SWVideoPlayer: View {
 
+    // MARK: - Configuration
+
     public let videoURL: URL
     public var cornerRadius: CGFloat
+
+    /// Invoked when the user taps the play button and fullscreen appears.
     public var onEnterFullscreen: (() -> Void)?
+
+    /// Invoked when the fullscreen player is dismissed.
     public var onExitFullscreen: (() -> Void)?
 
-    @State private var player: AVPlayer
+    // MARK: - State
+
+    /// Created on first appearance rather than in `init` (SwiftUI re-runs `init`
+    /// on every parent update), and replaced when `videoURL` changes.
+    @State private var player: AVPlayer?
     @State private var showFullscreen = false
+
+    // MARK: - Init
 
     public init(
         resource: String,
@@ -48,7 +60,6 @@ public struct SWVideoPlayer: View {
         self.cornerRadius = cornerRadius
         self.onEnterFullscreen = onEnterFullscreen
         self.onExitFullscreen = onExitFullscreen
-        self._player = State(initialValue: AVPlayer(url: url))
     }
 
     public init(
@@ -61,16 +72,21 @@ public struct SWVideoPlayer: View {
         self.cornerRadius = cornerRadius
         self.onEnterFullscreen = onEnterFullscreen
         self.onExitFullscreen = onExitFullscreen
-        self._player = State(initialValue: AVPlayer(url: url))
     }
+
+    // MARK: - Body
 
     public var body: some View {
         ZStack {
-            // AVPlayerLayer paused at time 0 shows the first frame as the poster
-            InlineVideoLayerView(player: player)
+            // AVPlayerLayer paused at time 0 displays the first frame as the poster
+            if let player {
+                InlineVideoLayerView(player: player)
+            }
 
+            // Dimming to make the play button stand out
             Color.black.opacity(0.25)
 
+            // Center play button
             Image(systemName: "play.fill")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(.white)
@@ -86,17 +102,35 @@ public struct SWVideoPlayer: View {
                 .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
         }
         .contentShape(Rectangle())
-        .onTapGesture { showFullscreen = true }
+        .onTapGesture {
+            showFullscreen = true
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Play video")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { showFullscreen = true }
+        .onAppear {
+            if player == nil {
+                player = AVPlayer(url: videoURL)
+            }
+        }
+        .onChange(of: videoURL) { _, newURL in
+            player = AVPlayer(url: newURL)
+        }
         .fullScreenCover(isPresented: $showFullscreen) {
-            SWVideoFullscreenPlayer(
-                player: player,
-                isPresented: $showFullscreen,
-                onEnter: onEnterFullscreen,
-                onExit: onExitFullscreen
-            )
+            if let player {
+                SWVideoFullscreenPlayer(
+                    player: player,
+                    isPresented: $showFullscreen,
+                    onEnter: onEnterFullscreen,
+                    onExit: onExitFullscreen
+                )
+            }
         }
     }
 }
+
+// MARK: - Inline video layer (shows current paused frame as poster)
 
 private struct InlineVideoLayerView: UIViewRepresentable {
     let player: AVPlayer
@@ -112,7 +146,11 @@ private struct InlineVideoLayerView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PlayerUIView, context: Context) {
+        // A new player (the video URL changed) needs its own first-frame poster
+        guard uiView.playerLayer.player !== player else { return }
         uiView.playerLayer.player = player
+        player.pause()
+        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
     final class PlayerUIView: UIView {
@@ -120,6 +158,8 @@ private struct InlineVideoLayerView: UIViewRepresentable {
         var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     }
 }
+
+// MARK: - Fullscreen player
 
 private struct SWVideoFullscreenPlayer: View {
     let player: AVPlayer
@@ -188,7 +228,8 @@ SWVideoPlayer(
 
 ## Pitfalls
 
-- **iOS only**: uses `UIImage` + `AVAudioSession`; file should be named `SWVideoPlayer+iOS.swift` in cross-platform codebases
-- **Thumbnail loading is async**: user sees dark placeholder for ~50-100ms until `AVAssetImageGenerator` returns
-- **Black frame at t=0**: many videos have a black frame at exactly 0s. Thumbnail samples at 0.5s to avoid this
+- **iOS only**: uses `UIViewRepresentable`, `AVAudioSession` and `fullScreenCover`; the file is named `SWVideoPlayer+iOS.swift` so cross-platform targets can exclude it from macOS
+- **`init(resource:)` traps on a missing file**: it calls `fatalError` if the resource is not in the main bundle; use `init(url:)` when the file may be absent
+- **Poster appears once the first frame decodes**: the player is created on first appearance, so the card shows only the dimmed background for a moment until the frame at time 0 is ready
+- **Black frame at t=0**: the poster is the frame at exactly 0s; if your clip opens on black, re-export it with a non-black first frame
 - **Audio session is process-global**: calling `.playback` category here affects the whole app's audio behavior

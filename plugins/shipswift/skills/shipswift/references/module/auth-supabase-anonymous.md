@@ -243,15 +243,30 @@ final class SWAPIClient {
     var tokenProvider: () -> String? = { nil }
     var refreshHandler: () async throws -> String = { throw SWServiceError.unauthorized }
 
-    init(session: URLSession = .shared) { self.session = session }
+    init(session: URLSession = SWAPIClient.makeSession()) { self.session = session }
+
+    /// Dedicated session for API calls: never `URLSession.shared`, whose shared URLCache can
+    /// serve a stale (or another user's) response. No cache, always hit the network.
+    static func makeSession() -> URLSession {
+        let config = URLSessionConfiguration.default
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }
 
     /// Authenticated request: attaches the Bearer token; on 401 it refreshes and replays ONCE.
     func authorizedRequest<Response: Decodable>(
         _ path: String, method: SWHTTPMethod, body: Encodable? = nil
     ) async throws -> Response {
+        let token = tokenProvider()
         do {
-            return try await send(path, method: method, body: body, token: tokenProvider())
+            return try await send(path, method: method, body: body, token: token)
         } catch SWServiceError.unauthorized {
+            // A parallel request may already have refreshed while this one was in flight:
+            // replay with its token instead of rotating the refresh token a second time.
+            if let current = tokenProvider(), current != token {
+                return try await send(path, method: method, body: body, token: current)
+            }
             let newToken = try await refreshHandler()
             return try await send(path, method: method, body: body, token: newToken)
         }
@@ -1359,7 +1374,7 @@ Supabase Auth supports phone OTP (`signInWithOtp` + `verifyOtp`). Add backend ro
 
 **Symptom**: several requests 401 at once, each refreshes, and rotated refresh tokens invalidate each other → cascading logouts.
 
-**Fix**: `SWUserManager.refresh()` reuses an in-flight `Task`, so parallel 401s await the same single refresh.
+**Fix**: `SWUserManager.refresh()` reuses an in-flight `Task`, so parallel 401s await the same single refresh. A 401 that lands after that refresh already finished (its request left with the old token) is replayed with the current token instead of refreshing again — `SWAPIClient.authorizedRequest` compares the token it sent with `tokenProvider()`.
 
 ### 8. The `is_anonymous` claim is baked into the JWT at issue time
 

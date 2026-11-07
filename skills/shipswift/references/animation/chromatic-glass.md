@@ -52,7 +52,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  Usage:
 //    // Default — gentle RGB split, internal only
 //    SWChromaticGlass {
-//        Image("ronaldo").resizable().scaledToFill()
+//        Image("photo").resizable().scaledToFill()
 //    }
 //
 //    // Tilt-driven, stronger separation
@@ -121,30 +121,131 @@ private struct SWChromaticGlassRenderer<Content: View>: View {
     let initial: SWChromaticGlass<Content>
     let content: Content
 
-    @State private var start: Date = .now
+    var body: some View {
+        // The split is driven by `tilt` alone (the shader's `time` argument
+        // is unused), so there is no `TimelineView` — the effect re-renders
+        // only when `tilt` / `intensity` / `separation` change.
+        // RGB split offsets the sample point — give the layerEffect a
+        // small offset budget so edge pixels can pull in neighbours.
+        content.layerEffect(
+            ShaderLibrary.swChromaticGlass(
+                .boundingRect,
+                .float2(Float(initial.tilt.width), Float(initial.tilt.height)),
+                .float(0),
+                .float(initial.intensity),
+                .float(initial.separation)
+            ),
+            maxSampleOffset: CGSize(width: 28, height: 28)
+        )
+    }
+}
+
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWChromaticGlassControlled<Content: View>: View {
+    @State private var tiltX: Float
+    @State private var tiltY: Float
+    @State private var intensity: Float
+    @State private var separation: Float
+
+    @State private var showSheet = false
+
+    private let content: Content
+
+    init(initial: SWChromaticGlass<Content>, content: Content) {
+        _tiltX      = State(initialValue: Float(initial.tilt.width))
+        _tiltY      = State(initialValue: Float(initial.tilt.height))
+        _intensity  = State(initialValue: initial.intensity)
+        _separation = State(initialValue: initial.separation)
+        self.content = content
+    }
 
     var body: some View {
-        TimelineView(.animation) { ctx in
-            let elapsed = Float(ctx.date.timeIntervalSince(start))
-            // RGB split offsets the sample point — give the layerEffect a
-            // small offset budget so edge pixels can pull in neighbours.
-            content.layerEffect(
-                ShaderLibrary.swChromaticGlass(
-                    .boundingRect,
-                    .float2(Float(initial.tilt.width), Float(initial.tilt.height)),
-                    .float(elapsed),
-                    .float(initial.intensity),
-                    .float(initial.separation)
-                ),
-                maxSampleOffset: CGSize(width: 28, height: 28)
+        SWChromaticGlassRenderer(
+            initial: SWChromaticGlass(
+                tilt: CGSize(width: CGFloat(tiltX), height: CGFloat(tiltY)),
+                intensity: intensity,
+                separation: separation
+            ) { content },
+            content: content
+        )
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Chromatic Glass Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWChromaticGlassControlsSheet(
+                tiltX: $tiltX,
+                tiltY: $tiltY,
+                intensity: $intensity,
+                separation: $separation
             )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
 }
 
-// (Optional `SWChromaticGlassControlled` + `SWChromaticGlassControlsSheet`
-// provide a gear ToolbarItem and a Form-based live-tuning sheet. Omit them
-// in production builds; the renderer above is everything you need to ship.)
+// MARK: - Controls Sheet
+
+private struct SWChromaticGlassControlsSheet: View {
+    @Binding var tiltX: Float
+    @Binding var tiltY: Float
+    @Binding var intensity: Float
+    @Binding var separation: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Tilt") {
+                    SWChromaticGlassSliderRow(label: "Tilt X", value: $tiltX, range: -1...1, step: 0.01)
+                    SWChromaticGlassSliderRow(label: "Tilt Y", value: $tiltY, range: -1...1, step: 0.01)
+                }
+                Section("Glass") {
+                    SWChromaticGlassSliderRow(label: "Intensity",  value: $intensity,  range: 0...1, step: 0.01)
+                    SWChromaticGlassSliderRow(label: "Separation", value: $separation, range: 0...1, step: 0.01)
+                }
+            }
+            .navigationTitle("Chromatic Glass")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWChromaticGlassSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWChromaticGlass.metal
@@ -196,7 +297,7 @@ using namespace metal;
     // Stronger at edges, follows tilt direction
     float2 center = float2(0.5, 0.5);
     float2 fromCenter = uv - center;
-    float edgeFactor = length(fromCenter) * 2.0; // 0 at center, 1 at corners
+    float edgeFactor = length(fromCenter) * 2.0; // 0 at center, 1 at edge midpoints, ~1.41 at corners
     edgeFactor = pow(edgeFactor, 1.5); // Non-linear falloff
 
     // Offset direction influenced by tilt
@@ -233,7 +334,7 @@ using namespace metal;
 ```swift
 // Default — gentle RGB split, internal only
 SWChromaticGlass {
-    Image("ronaldo").resizable().scaledToFill()
+    Image("photo").resizable().scaledToFill()
 }
 .frame(width: 250, height: 350)
 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -258,7 +359,7 @@ SWChromaticGlass(tilt: tilt, separation: 0.6) { cardArtwork }
 |---|---|---|---|---|
 | `tilt` | `CGSize` | `.zero` | ~ -1…1 per axis | Light/parallax direction, usually drag-driven |
 | `intensity` | `Float` | `0.6` | 0…1 | Blend of the R/B split over the source |
-| `separation` | `Float` | `0.4` | 0…1 | How far the R/B channels separate (max ≈ 14 px at the edges) |
+| `separation` | `Float` | `0.4` | 0…1 | How far the R/B channels separate (at `1.0`: ≈ 14 px at the edge midpoints, ≈ 22 px in the corners) |
 | `showsControls` | `Bool` | `false` | — | Demo-only gear ToolbarItem; requires an enclosing `NavigationStack` |
 
 ## Integration Checklist
@@ -266,11 +367,12 @@ SWChromaticGlass(tilt: tilt, separation: 0.6) { cardArtwork }
 1. Copy `SWChromaticGlass.swift` and `SWChromaticGlass.metal` into your Xcode target, keeping the MIT attribution header on both files.
 2. Confirm the deployment target is iOS 18+ / macOS 15+.
 3. Wrap a card / photo in `SWChromaticGlass { ... }`; clip it to a `RoundedRectangle`.
-4. Keep the `maxSampleOffset` of `CGSize(width: 28, height: 28)` in the renderer — it must comfortably exceed the maximum pixel offset the shader reaches (≈ 14 px). See Gotchas.
+4. Keep the `maxSampleOffset` of `CGSize(width: 28, height: 28)` in the renderer — it must comfortably exceed the maximum pixel offset the shader reaches (≈ 22 px in the corners). See Gotchas.
 5. Drive `tilt` from a `DragGesture` so the fringing follows the card's rotation.
 
 ## Notes / Gotchas
 
-- **`maxSampleOffset` is load-bearing.** This is the only effect in the new Metal set that samples neighbouring pixels (R/B channels at `position ± offset`). The maximum offset the shader reaches is `separation(max 1.0) × (1×0.85 + 0.15) × 14 ≈ 14 px`; the renderer requests `28 px` of headroom. If you drop it to `.zero` (as the foil family uses), the layer pre-clips its content and the RGB fringing is truncated at the edges. Do not copy `.zero` from the other skills here.
+- **`maxSampleOffset` is load-bearing.** Unlike the foil family, this effect samples neighbouring pixels (R/B channels at `position ± offset`). The offset is `separation × (edgeFactor × 0.85 + 0.15) × 14` px, where `edgeFactor = (2 × distance from centre)^1.5` is 1 at the edge midpoints and ≈ 1.68 in the corners — so at `separation = 1` the shader reaches ≈ 14 px at the edges and ≈ 22 px in the corners; the renderer requests `28 px` of headroom. If you drop it to `.zero` (as the foil family uses), the layer pre-clips its content and the RGB fringing is truncated at the edges. Do not copy `.zero` from the other skills here.
 - The `0.15` floor inside `offsetAmount` keeps a baseline split even at the centre, so the fringing reads across the whole photo rather than only at the corners.
 - The effect is deliberately subtle — it reads as glass-over-card, not a glitch. Raise `separation` and `intensity` together for a stronger split.
+- There is no `TimelineView`: the shader ignores its `time` argument, so the renderer passes `0` and the layer re-renders only when `tilt`, `intensity` or `separation` change — a still card costs nothing per frame.

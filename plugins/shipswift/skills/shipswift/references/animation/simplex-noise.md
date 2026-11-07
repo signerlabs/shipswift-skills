@@ -29,8 +29,9 @@ SWAnimation/SWMetal/
 //  SWSimplexNoise.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `colorEffect`. A multi-color gradient mapped into
-//  smooth animated curves built from two layered 2D simplex noises.
+//  A multi-color gradient mapped into smooth animated curves built from
+//  two layered 2D simplex noises, rendered via a SwiftUI Metal
+//  `colorEffect`.
 //
 //  Algorithm: two snoise samples (one at base UV scale, one at 2× scale)
 //  are added into a 0..1 shape value, then mapped across up to 10 base
@@ -219,7 +220,7 @@ private struct SWSimplexNoiseControlled: View {
                 softness: $softness,
                 speed: $speed
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -267,13 +268,13 @@ private struct SWSimplexNoiseControlsSheet: View {
                 }
 
                 Section("Gradient") {
-                    SliderRow(label: "Scale",          value: $scale,         range: 0.05...4, step: 0.05)
-                    SliderRow(label: "Steps / Color",  value: $stepsPerColor, range: 1...10,   step: 1)
-                    SliderRow(label: "Softness",       value: $softness,      range: 0...1,    step: 0.01)
+                    SWSimplexNoiseSliderRow(label: "Scale",          value: $scale,         range: 0.05...4, step: 0.05)
+                    SWSimplexNoiseSliderRow(label: "Steps / Color",  value: $stepsPerColor, range: 1...10,   step: 1)
+                    SWSimplexNoiseSliderRow(label: "Softness",       value: $softness,      range: 0...1,    step: 0.01)
                 }
 
                 Section("Motion") {
-                    SliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                    SWSimplexNoiseSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
                 }
             }
             .navigationTitle("Simplex Noise")
@@ -289,7 +290,7 @@ private struct SWSimplexNoiseControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWSimplexNoiseSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -443,7 +444,7 @@ namespace SWSimplexNoiseImpl {
     // Normalize so the shader is resolution-independent.
     float2 uv = (position - 0.5 * size) / minDim;
     uv /= max(scale, 0.001);
-    uv *= 0.1; // intrinsic `shape_uv *= .1`.
+    uv *= 0.1; // `shape_uv *= .1`.
 
     float t = 0.2 * time;
 

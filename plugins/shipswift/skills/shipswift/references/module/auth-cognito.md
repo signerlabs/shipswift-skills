@@ -84,11 +84,25 @@ App Runner (Hono backend, direct)
 
 ### iOS
 
-The iOS implementation consists of 4 files that work together to provide a complete authentication experience.
+Copy these files into your app:
+
+| File | Platform | Purpose |
+|------|----------|---------|
+| `SWUserManager.swift` | iOS + macOS | Session state (`SWSessionState`), the Amplify-backed `SWAuthService` actor, token refresh, guest mode, App Store review prompt |
+| `SWAuthView+iOS.swift` | iOS only | Complete auth UI: email sign-in/up, phone sign-in with country picker, Apple + Google, verification code, forgot/reset password |
+| `SWAuthView+macOS.swift` | macOS only | Centered auth panel: email sign-in/up, Apple + Google, verification code, forgot/reset password (no phone sign-in) |
+| `SWAgreementChecker.swift` | iOS + macOS | Terms of Service / Privacy Policy checkbox |
+| `SWCountryData.swift` | iOS + macOS | 200+ countries with dial codes, flags and phone number lengths (used by the iOS phone sign-in) |
+| `SWDebugLog.swift` | iOS + macOS | `swDebugLog(...)` debug-only logging used by `SWUserManager` (skip it if your project already has ShipSwift's `SWUtil`) |
+| `SWButtonStyle` (from `SWUtil/SWViewExtension.swift`) | iOS + macOS | `.swPrimary` / `.swSecondary` button styles used by the iOS view (skip it if your project already has ShipSwift's `SWUtil`) |
+
+Both `SWAuthView` files declare the same type. In a multiplatform target, limit each to its platform in **Build Phases → Compile Sources** (platform filter); an iOS-only app needs just `SWAuthView+iOS.swift`.
+
+> **Requires:** the **component-alert** skill (`SWAlertManager`). Both auth views report errors with `SWAlertManager.shared.show(...)`, so attach `.swAlert()` to your root view.
 
 #### 1. SWUserManager.swift — Session state and auth orchestration
 
-This is the central auth manager that the rest of your app observes. It manages session state transitions and delegates actual auth operations to `SWAuthService`.
+This is the central auth manager that the rest of your app observes. It manages session state transitions and delegates actual auth operations to `SWAuthService`. Token failures are classified: an offline device keeps its session (`getFreshIdToken()` returns `nil`), while an expired or revoked session signs the user out.
 
 ```swift
 import Foundation
@@ -98,20 +112,32 @@ import Amplify
 import AWSCognitoAuthPlugin
 import AWSPluginsCore
 
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
 // MARK: - Session State
 
 /// User session state
 enum SWSessionState: Equatable {
     case loading
     case signedOut(errorMessage: String? = nil)
+    case guest                              // Guest mode, skip sign in
     case onboarding(tokens: SWAuthTokens)   // Signed in, onboarding not completed
     case ready(tokens: SWAuthTokens)        // Signed in, onboarding completed
 
     var isSignedIn: Bool {
         switch self {
         case .onboarding, .ready: return true
-        case .signedOut, .loading: return false
+        case .signedOut, .loading, .guest: return false
         }
+    }
+
+    var isGuest: Bool {
+        if case .guest = self { return true }
+        return false
     }
 
     var isLoading: Bool {
@@ -122,7 +148,7 @@ enum SWSessionState: Equatable {
     var tokens: SWAuthTokens? {
         switch self {
         case .onboarding(let tokens), .ready(let tokens): return tokens
-        case .signedOut, .loading: return nil
+        case .signedOut, .loading, .guest: return nil
         }
     }
 
@@ -204,7 +230,7 @@ final class SWUserManager {
         static let minActions = 2             // At least 2 completed actions
         static let minLaunches = 3            // At least 3 app launches
         static let daysBetweenRequests = 30   // Days between review requests
-        static let delayBeforeRequest: Duration = .seconds(1)
+        static let delayBeforeRequest: Duration = .seconds(1)  // Delay before request
     }
 
     // MARK: - Properties
@@ -257,6 +283,7 @@ final class SWUserManager {
         appLaunchCount += 1
 
         if !skipAuthCheck {
+            // Check authentication status
             Task {
                 await checkAuthStatus()
             }
@@ -268,7 +295,7 @@ final class SWUserManager {
     // MARK: - Public Methods
 
     func completeFirstLaunch() {
-        isFirstLaunch = false
+        isFirstLaunch = false  // didSet automatically syncs to UserDefaults
     }
 
     // MARK: - Auth Status Check
@@ -285,8 +312,15 @@ final class SWUserManager {
                 // Default to ready state directly
                 // If there is an onboarding flow, query backend status here
                 sessionState = .ready(tokens: tokens)
+            } catch SWServiceError.networkError {
+                // Offline with an expired ID token: keep the stored session so the next launch can restore it
+                swDebugLog("⚠️ [SWUserManager] Cannot refresh session while offline")
+                sessionState = .signedOut(errorMessage: SWServiceError.networkError.errorDescription)
             } catch {
-                sessionState = .signedOut(errorMessage: "Failed to fetch auth info")
+                // Session expired or token invalid, sign out to clean up local Amplify cache
+                swDebugLog("⚠️ [SWUserManager] Session expired, signing out:", error)
+                await authService.signOut()
+                sessionState = .signedOut()
             }
         } else {
             sessionState = .signedOut()
@@ -327,22 +361,30 @@ final class SWUserManager {
 
     /// Apple Sign In
     func signInWithApple() async throws {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
+        swDebugLog("🍎 [Auth] Starting Apple Sign In...")
+
+        guard let window = SWWindowHelper.keyWindow else {
+            swDebugLog("🍎 [Auth] ❌ Cannot get window")
             throw SWServiceError.unknown("Cannot get window")
         }
 
         isAuthenticating = true
         defer { isAuthenticating = false }
 
-        let tokens = try await authService.signInWithApple(presentationAnchor: window)
-        sessionState = .ready(tokens: tokens)
+        do {
+            swDebugLog("🍎 [Auth] Calling authService.signInWithApple...")
+            let tokens = try await authService.signInWithApple(presentationAnchor: window)
+            swDebugLog("🍎 [Auth] ✅ Apple Sign In successful, got tokens")
+            sessionState = .ready(tokens: tokens)
+        } catch {
+            swDebugLog("🍎 [Auth] ❌ Apple Sign In failed:", error)
+            throw error
+        }
     }
 
     /// Google Sign In
     func signInWithGoogle() async throws {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
+        guard let window = SWWindowHelper.keyWindow else {
             throw SWServiceError.unknown("Cannot get window")
         }
 
@@ -351,6 +393,18 @@ final class SWUserManager {
 
         let tokens = try await authService.signInWithGoogle(presentationAnchor: window)
         sessionState = .ready(tokens: tokens)
+    }
+
+    // MARK: - Guest Mode
+
+    /// Skip sign in and enter guest mode
+    func skipSignIn() {
+        sessionState = .guest
+    }
+
+    /// Require sign in (switch from guest mode to sign in page)
+    func requireSignIn() {
+        sessionState = .signedOut()
     }
 
     // MARK: - Sign Out / Delete Account
@@ -420,6 +474,13 @@ final class SWUserManager {
     /// Returns nil when:
     /// - User is not signed in
     /// - Refresh Token expired (30 days of inactivity), requires re-sign-in
+    /// - The device is offline and the ID Token has expired (the session is kept)
+    ///
+    /// Usage example:
+    /// ```swift
+    /// guard let idToken = await userManager.getFreshIdToken() else { return }
+    /// await apiService.fetchData(idToken: idToken)
+    /// ```
     func getFreshIdToken() async -> String? {
         guard sessionState.isSignedIn else {
             return nil
@@ -439,7 +500,15 @@ final class SWUserManager {
             }
 
             return tokens.idToken
+        } catch SWServiceError.networkError {
+            // Offline: keep the session, the next call refreshes once the network is back
+            swDebugLog("⚠️ [SWUserManager] Token refresh failed while offline, keeping session")
+            return nil
         } catch {
+            // Refresh token expired, sign out to avoid "fake logged-in" state
+            swDebugLog("⚠️ [SWUserManager] Token refresh failed, signing out:", error)
+            await authService.signOut()
+            sessionState = .signedOut()
             return nil
         }
     }
@@ -502,11 +571,17 @@ final class SWUserManager {
     }
 
     private func requestReview() async {
+        #if os(iOS)
         guard let scene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
         else { return }
 
         AppStore.requestReview(in: scene)
+        #elseif os(macOS)
+        guard let controller = NSApplication.shared.keyWindow?.contentViewController else { return }
+
+        AppStore.requestReview(in: controller)
+        #endif
 
         hasRequestedReview = true
         lastReviewRequestDate = .now
@@ -553,6 +628,11 @@ actor SWAuthService {
 
     /// Sign in with email and password
     func signIn(email: String, password: String) async throws -> SWAuthTokens {
+        // A session kept while offline is still stored; Amplify rejects a new sign-in on top of it
+        if await isSignedIn() {
+            await signOut()
+        }
+
         let result = try await Amplify.Auth.signIn(
             username: email,
             password: password
@@ -569,26 +649,36 @@ actor SWAuthService {
 
     /// Apple Sign In
     func signInWithApple(presentationAnchor: AuthUIPresentationAnchor) async throws -> SWAuthTokens {
-        // If already signed in, sign out first to avoid stale session
+        swDebugLog("🍎 [SWAuthService] signInWithApple started")
+
+        // If already signed in, sign out first
         if await isSignedIn() {
+            swDebugLog("🍎 [SWAuthService] Already signed in, signing out first...")
             await signOut()
         }
 
-        // preferPrivateSession: true skips the "wants to use amazoncognito.com" browser prompt
         let pluginOptions = AWSAuthWebUISignInOptions(preferPrivateSession: true)
         let options = AuthWebUISignInRequest.Options(pluginOptions: pluginOptions)
 
-        let result = try await Amplify.Auth.signInWithWebUI(
-            for: .apple,
-            presentationAnchor: presentationAnchor,
-            options: options
-        )
+        do {
+            let result = try await Amplify.Auth.signInWithWebUI(
+                for: .apple,
+                presentationAnchor: presentationAnchor,
+                options: options
+            )
 
-        guard result.isSignedIn else {
-            throw SWServiceError.notSignedIn
+            guard result.isSignedIn else {
+                throw SWServiceError.notSignedIn
+            }
+
+            return try await fetchTokens()
+        } catch let error as AuthError {
+            swDebugLog("🍎 [SWAuthService] ❌ AuthError:", error.errorDescription)
+            throw error
+        } catch {
+            swDebugLog("🍎 [SWAuthService] ❌ Unknown Error:", String(describing: error))
+            throw error
         }
-
-        return try await fetchTokens()
     }
 
     /// Google Sign In
@@ -633,8 +723,8 @@ actor SWAuthService {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken
             )
-        case .failure:
-            throw SWServiceError.tokenMissing
+        case .failure(let error):
+            throw Self.tokenError(from: error)
         }
     }
 
@@ -655,9 +745,18 @@ actor SWAuthService {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken
             )
-        case .failure:
-            throw SWServiceError.tokenMissing
+        case .failure(let error):
+            throw Self.tokenError(from: error)
         }
+    }
+
+    /// Offline is transient (`.networkError`, keep the session); any other failure means the session is gone (`.tokenMissing`)
+    private static func tokenError(from error: AuthError) -> SWServiceError {
+        if case .service(_, _, let underlyingError) = error,
+           case .network? = underlyingError as? AWSCognitoAuthError {
+            return .networkError
+        }
+        return .tokenMissing
     }
 
     // MARK: - Sign Out / Delete Account
@@ -691,7 +790,11 @@ actor SWAuthService {
             await signOut()
         }
 
-        let result = try await Amplify.Auth.signIn(username: phoneNumber)
+        // Passwordless custom auth flow, independent of the default flow in amplifyconfiguration.json
+        let options = AuthSignInRequest.Options(
+            pluginOptions: AWSAuthSignInOptions(authFlowType: .customWithoutSRP)
+        )
+        let result = try await Amplify.Auth.signIn(username: phoneNumber, options: options)
         // Cognito custom auth flow sends verification code automatically
         guard case .confirmSignInWithCustomChallenge = result.nextStep else {
             if result.isSignedIn {
@@ -726,11 +829,29 @@ actor SWAuthService {
         )
     }
 }
+
+// MARK: - Window Helper
+
+/// Cross-platform helper to retrieve the key window for auth presentation anchors
+private enum SWWindowHelper {
+    #if os(iOS)
+    static var keyWindow: UIWindow? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+    }
+    #elseif os(macOS)
+    static var keyWindow: NSWindow? {
+        NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first
+    }
+    #endif
+}
 ```
 
-#### 2. SWAuthView+iOS.swift / SWAuthView+macOS.swift — Complete authentication UI
+#### 2. SWAuthView+iOS.swift — Complete authentication UI (iOS)
 
-A single view that handles all authentication flows: email sign-in/up, phone sign-in with country picker, social buttons, verification code, forgot/reset password. Reads `SWUserManager` from the SwiftUI environment.
+A single view that handles all authentication flows: email sign-in/up, phone sign-in with country picker, social buttons, verification code, forgot/reset password. Reads `SWUserManager` from the SwiftUI environment. `isDemo: true` renders the UI without running any auth action (for showcases and screenshots).
 
 ```swift
 import SwiftUI
@@ -738,6 +859,8 @@ import Amplify
 import AWSCognitoAuthPlugin
 
 struct SWAuthView: View {
+
+    var isDemo: Bool = false
 
     // MARK: - Environment
 
@@ -764,7 +887,7 @@ struct SWAuthView: View {
         case signingIn
     }
 
-    // Sign-in method for the top-bar Email / Phone toggle
+    // Sign-in method enum for the top-bar Email / Phone toggle
     private enum SignInMethod: String, CaseIterable {
         case email = "Email"
         case phone = "Phone"
@@ -787,7 +910,8 @@ struct SWAuthView: View {
 
     // Phone sign-in state
     @State private var phoneNumber = ""
-    @State private var countryCode = "+1"
+    // Dial codes are shared (+1 covers the US, Canada and the Caribbean), so the selection is tracked by name
+    @State private var countryName = "United States"
     @State private var showingCountryPicker = false
     @State private var countrySearchText = ""
     @State private var isResending = false
@@ -804,9 +928,19 @@ struct SWAuthView: View {
         return email.range(of: emailRegex, options: .regularExpression) != nil
     }
 
-    private var isValidPassword: Bool { password.count >= 8 }
+    private var isValidPassword: Bool {
+        password.count >= 8
+    }
+
     private var isValidConfirmPassword: Bool { password == confirmPassword && isValidPassword }
+
     private var isValidCode: Bool { verificationCode.count == 6 }
+
+    private var selectedCountry: SWCountry? {
+        SWCountryData.allCountries.first { $0.name == countryName }
+    }
+
+    private var countryCode: String { selectedCountry?.code ?? "+1" }
 
     private var isValidPhone: Bool {
         let expectedLength = SWCountryData.phoneLength(for: countryCode)
@@ -814,8 +948,13 @@ struct SWAuthView: View {
     }
 
     private var fullPhoneNumber: String { "\(countryCode)\(phoneNumber)" }
+
     private var isValidResetCode: Bool { resetCode.count == 6 }
-    private var isValidNewPassword: Bool { newPassword.count >= 8 }
+
+    private var isValidNewPassword: Bool {
+        newPassword.count >= 8
+    }
+
     private var isValidConfirmNewPassword: Bool { newPassword == confirmNewPassword && isValidNewPassword }
 
     // MARK: - Body
@@ -846,7 +985,7 @@ struct SWAuthView: View {
                             .multilineTextAlignment(.center)
                     }
 
-                    // Sign-in method toggle (only in signIn / phoneSignIn)
+                    // Sign-in method toggle buttons, shown only in signIn / phoneSignIn modes
                     if viewMode == .signIn || viewMode == .phoneSignIn {
                         HStack(spacing: 12) {
                             signInMethodButton(.email, icon: "envelope.fill", label: "Email")
@@ -887,8 +1026,8 @@ struct SWAuthView: View {
                 countryCodePicker
             }
             .task {
-                // Pre-trigger network permission request to avoid the permission
-                // dialog appearing during OAuth sign-in which causes sign-in failure
+                // Make one request up front so the cellular data ("Wireless Data") prompt on
+                // China-region devices shows now, not in the middle of OAuth sign-in where it breaks the flow
                 await prefetchNetworkPermission()
             }
         }
@@ -898,7 +1037,11 @@ struct SWAuthView: View {
 
     private func prefetchNetworkPermission() async {
         guard let url = URL(string: "https://www.apple.com") else { return }
-        _ = try? await URLSession.shared.data(from: url)
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.finishTasksAndInvalidate() }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        _ = try? await session.data(for: request)
     }
 
     private var headerTitle: String {
@@ -930,9 +1073,15 @@ struct SWAuthView: View {
     @ViewBuilder
     private var mainAuthSection: some View {
         VStack(spacing: 16) {
+            // Email sign-in area
             emailSignInSection
+
+            // Social sign-in area (includes the agreement checkbox)
             if viewMode == .signIn {
                 socialSignInSection
+            } else {
+                // Sign-up also requires the agreement, so the checkbox must be visible here
+                SWAgreementChecker(agreementChecked: $agreementChecked)
             }
         }
     }
@@ -948,8 +1097,8 @@ struct SWAuthView: View {
                     .foregroundStyle(.secondary)
                 TextField("Email", text: $email)
                     .keyboardType(.emailAddress)
-                    .textContentType(.emailAddress)
                     .textInputAutocapitalization(.never)
+                    .textContentType(.emailAddress)
                     .autocorrectionDisabled()
             }
             .padding(.horizontal, 16)
@@ -972,15 +1121,7 @@ struct SWAuthView: View {
 
             // Password requirements hint (sign-up mode only)
             if viewMode == .signUp && !password.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: password.count >= 8 ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(password.count >= 8 ? .green : .secondary)
-                    Text("At least 8 characters")
-                        .foregroundStyle(password.count >= 8 ? .primary : .secondary)
-                }
-                .font(.caption)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
+                passwordRequirements
             }
 
             // Confirm password (sign-up mode only)
@@ -1005,25 +1146,30 @@ struct SWAuthView: View {
 
             // Sign-in / Sign-up button
             Button {
-                if viewMode == .signUp { signUpWithEmail() }
-                else { signInWithEmail() }
+                if viewMode == .signUp {
+                    signUpWithEmail()
+                } else {
+                    signInWithEmail()
+                }
             } label: {
                 HStack {
                     if loadingState == .signingIn {
-                        ProgressView().tint(.white)
+                        ProgressView()
+                            .tint(.white)
                     }
-                    Text(viewMode == .signUp
-                        ? (loadingState == .signingIn ? "Creating Account..." : "Create Account")
-                        : (loadingState == .signingIn ? "Signing In..." : "Sign In"))
+                    Text(emailButtonText)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.swPrimary)
             .disabled(!isEmailFormValid || loadingState == .signingIn)
 
-            // Forgot password (sign-in mode)
+            // Forgot password (sign-in mode only)
             if viewMode == .signIn {
-                Button { withAnimation { viewMode = .forgotPassword } } label: {
+                Button {
+                    withAnimation {
+                        viewMode = .forgotPassword
+                    }
+                } label: {
                     Text("Forgot Password?")
                         .font(.subheadline)
                         .foregroundStyle(Color.accentColor)
@@ -1037,14 +1183,34 @@ struct SWAuthView: View {
                     confirmPassword = ""
                 }
             } label: {
-                Text(viewMode == .signUp
-                    ? "Already have an account? Sign In"
-                    : "Don't have an account? Sign Up")
+                Text(viewMode == .signUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
                     .font(.subheadline)
                     .foregroundStyle(Color.accentColor)
             }
         }
         .padding(.vertical)
+    }
+
+    // MARK: - Password Requirements
+
+    @ViewBuilder
+    private var passwordRequirements: some View {
+        HStack(spacing: 4) {
+            Image(systemName: password.count >= 8 ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(password.count >= 8 ? .green : .secondary)
+            Text("At least 8 characters")
+                .foregroundStyle(password.count >= 8 ? .primary : .secondary)
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+    }
+
+    private var emailButtonText: String {
+        if loadingState == .signingIn {
+            return viewMode == .signUp ? "Creating Account..." : "Signing In..."
+        }
+        return viewMode == .signUp ? "Create Account" : "Sign In"
     }
 
     private var isEmailFormValid: Bool {
@@ -1059,6 +1225,7 @@ struct SWAuthView: View {
     @ViewBuilder
     private var confirmSignUpSection: some View {
         VStack(spacing: 16) {
+            // Verification code input
             TextField("000000", text: $verificationCode)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
@@ -1072,23 +1239,32 @@ struct SWAuthView: View {
                     verificationCode = String(newValue.filter(\.isNumber).prefix(6))
                 }
 
-            Button { confirmSignUp() } label: {
+            // Confirm button
+            Button {
+                confirmSignUp()
+            } label: {
                 HStack {
-                    if loadingState == .verifying { ProgressView().tint(.white) }
+                    if loadingState == .verifying {
+                        ProgressView()
+                            .tint(.white)
+                    }
                     Text(loadingState == .verifying ? "Verifying..." : "Verify Email")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.swPrimary)
             .disabled(!isValidCode || loadingState == .verifying)
 
-            Button { resendEmailCode() } label: {
+            // Resend verification code
+            Button {
+                resendEmailCode()
+            } label: {
                 Text("Resend Code")
                     .font(.subheadline)
                     .foregroundStyle(Color.accentColor)
             }
             .disabled(loadingState == .sendingCode)
 
+            // Back to sign in
             Button {
                 withAnimation {
                     signInMethod = .email
@@ -1108,17 +1284,19 @@ struct SWAuthView: View {
         }
     }
 
-    // MARK: - Forgot / Reset Password Sections
+    // MARK: - Forgot Password Section
 
     @ViewBuilder
     private var forgotPasswordSection: some View {
         VStack(spacing: 16) {
+            // Email input
             HStack {
-                Image(systemName: "envelope").foregroundStyle(.secondary)
+                Image(systemName: "envelope")
+                    .foregroundStyle(.secondary)
                 TextField("Email", text: $email)
                     .keyboardType(.emailAddress)
-                    .textContentType(.emailAddress)
                     .textInputAutocapitalization(.never)
+                    .textContentType(.emailAddress)
                     .autocorrectionDisabled()
             }
             .padding(.horizontal, 16)
@@ -1126,30 +1304,46 @@ struct SWAuthView: View {
             .background(.accent.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            Button { sendResetCode() } label: {
+            // Send verification code button
+            Button {
+                sendResetCode()
+            } label: {
                 HStack {
-                    if loadingState == .sendingCode { ProgressView().tint(.white) }
+                    if loadingState == .sendingCode {
+                        ProgressView()
+                            .tint(.white)
+                    }
                     Text(loadingState == .sendingCode ? "Sending..." : "Send Reset Code")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.swPrimary)
             .disabled(!isValidEmail || loadingState == .sendingCode)
 
+            // Back to sign in
             Button {
-                withAnimation { signInMethod = .email; viewMode = .signIn }
+                withAnimation {
+                    signInMethod = .email
+                    viewMode = .signIn
+                }
             } label: {
-                Text("Back to Sign In").font(.subheadline).foregroundStyle(.secondary)
+                Text("Back to Sign In")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical)
     }
 
+    // MARK: - Reset Password Section
+
     @ViewBuilder
     private var resetPasswordSection: some View {
         VStack(spacing: 16) {
+            // Verification code input
             VStack(alignment: .leading, spacing: 4) {
-                Text("Verification Code").font(.caption).foregroundStyle(.secondary)
+                Text("Verification Code")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 TextField("000000", text: $resetCode)
                     .keyboardType(.numberPad)
                     .textContentType(.oneTimeCode)
@@ -1163,10 +1357,14 @@ struct SWAuthView: View {
                     }
             }
 
+            // New password
             VStack(alignment: .leading, spacing: 4) {
-                Text("New Password").font(.caption).foregroundStyle(.secondary)
+                Text("New Password")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HStack {
-                    Image(systemName: "lock").foregroundStyle(.secondary)
+                    Image(systemName: "lock")
+                        .foregroundStyle(.secondary)
                     SecureField("New Password", text: $newPassword)
                         .textContentType(.newPassword)
                 }
@@ -1176,6 +1374,7 @@ struct SWAuthView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
+            // Password requirements hint
             if !newPassword.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: newPassword.count >= 8 ? "checkmark.circle.fill" : "circle")
@@ -1188,10 +1387,14 @@ struct SWAuthView: View {
                 .padding(.horizontal, 4)
             }
 
+            // Confirm new password
             VStack(alignment: .leading, spacing: 4) {
-                Text("Confirm New Password").font(.caption).foregroundStyle(.secondary)
+                Text("Confirm New Password")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HStack {
-                    Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.secondary)
                     SecureField("Confirm New Password", text: $confirmNewPassword)
                         .textContentType(.newPassword)
                 }
@@ -1201,27 +1404,40 @@ struct SWAuthView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 if !confirmNewPassword.isEmpty && newPassword != confirmNewPassword {
-                    Text("Passwords do not match").font(.caption).foregroundStyle(.red)
+                    Text("Passwords do not match")
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             }
 
-            Button { confirmResetPassword() } label: {
+            // Reset password button
+            Button {
+                confirmResetPassword()
+            } label: {
                 HStack {
-                    if loadingState == .verifying { ProgressView().tint(.white) }
+                    if loadingState == .verifying {
+                        ProgressView()
+                            .tint(.white)
+                    }
                     Text(loadingState == .verifying ? "Resetting..." : "Reset Password")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.swPrimary)
             .disabled(!isValidResetCode || !isValidConfirmNewPassword || loadingState == .verifying)
 
+            // Back to sign in
             Button {
                 withAnimation {
-                    signInMethod = .email; viewMode = .signIn
-                    resetCode = ""; newPassword = ""; confirmNewPassword = ""; password = ""
+                    signInMethod = .email
+                    viewMode = .signIn
+                    resetCode = ""
+                    newPassword = ""
+                    confirmNewPassword = ""
                 }
             } label: {
-                Text("Back to Sign In").font(.subheadline).foregroundStyle(.secondary)
+                Text("Back to Sign In")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical)
@@ -1232,13 +1448,18 @@ struct SWAuthView: View {
     @ViewBuilder
     private var phoneSignInSection: some View {
         VStack(spacing: 16) {
+            // Country code + phone number input
             HStack(spacing: 8) {
-                // Country code selector
-                Button { showingCountryPicker = true } label: {
+                // Country code selector button
+                Button {
+                    showingCountryPicker = true
+                } label: {
                     HStack(spacing: 4) {
-                        Text(SWCountryData.flag(for: countryCode))
+                        Text(selectedCountry?.flag ?? "🌍")
                         Text(countryCode)
-                        Image(systemName: "chevron.down").font(.caption2).foregroundStyle(.secondary)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 14)
@@ -1246,6 +1467,7 @@ struct SWAuthView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
+                // Phone number input
                 TextField("Phone Number", text: $phoneNumber)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
@@ -1254,21 +1476,30 @@ struct SWAuthView: View {
                     .background(.accent.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .onChange(of: phoneNumber) { _, newValue in
+                        // Remove spaces from auto-filled phone numbers
                         let cleaned = newValue.replacingOccurrences(of: " ", with: "")
-                        if cleaned != newValue { phoneNumber = cleaned }
+                        if cleaned != newValue {
+                            phoneNumber = cleaned
+                        }
                     }
             }
 
-            Button { sendPhoneCode() } label: {
+            // Send verification code button
+            Button {
+                sendPhoneCode()
+            } label: {
                 HStack {
-                    if loadingState == .sendingCode { ProgressView().tint(.white) }
+                    if loadingState == .sendingCode {
+                        ProgressView()
+                            .tint(.white)
+                    }
                     Text(loadingState == .sendingCode ? "Sending..." : "Send Verification Code")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.swPrimary)
             .disabled(!isValidPhone || loadingState == .sendingCode)
 
+            // Social sign-in area
             socialSignInSection
         }
         .padding(.vertical)
@@ -1279,6 +1510,7 @@ struct SWAuthView: View {
     @ViewBuilder
     private var phoneVerifySection: some View {
         VStack(spacing: 16) {
+            // 6-digit verification code input
             TextField("000000", text: $verificationCode)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
@@ -1292,19 +1524,29 @@ struct SWAuthView: View {
                     verificationCode = String(newValue.filter(\.isNumber).prefix(6))
                 }
 
-            Button { verifyPhoneCode() } label: {
+            // Verify button
+            Button {
+                verifyPhoneCode()
+            } label: {
                 HStack {
-                    if loadingState == .verifying { ProgressView().tint(.white) }
+                    if loadingState == .verifying {
+                        ProgressView()
+                            .tint(.white)
+                    }
                     Text(loadingState == .verifying ? "Verifying..." : "Verify Phone")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.swPrimary)
             .disabled(!isValidCode || loadingState == .verifying)
 
-            Button { resendPhoneCode() } label: {
+            // Resend verification code
+            Button {
+                resendPhoneCode()
+            } label: {
                 HStack {
-                    if isResending { ProgressView() }
+                    if isResending {
+                        ProgressView()
+                    }
                     Text("Resend Code")
                 }
                 .font(.subheadline)
@@ -1312,10 +1554,16 @@ struct SWAuthView: View {
             }
             .disabled(isResending)
 
+            // Back to phone sign-in
             Button {
-                withAnimation { viewMode = .phoneSignIn; verificationCode = "" }
+                withAnimation {
+                    viewMode = .phoneSignIn
+                    verificationCode = ""
+                }
             } label: {
-                Text("Back").font(.subheadline).foregroundStyle(.secondary)
+                Text("Back")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical)
@@ -1328,6 +1576,7 @@ struct SWAuthView: View {
     // MARK: - Country Code Picker
 
     private var countryCodePicker: some View {
+        // Filter countries by search text
         let filteredCountries: [SWCountry] = countrySearchText.isEmpty
             ? SWCountryData.allCountries
             : SWCountryData.allCountries.filter {
@@ -1344,19 +1593,23 @@ struct SWAuthView: View {
                     Section(header: Text(letter)) {
                         ForEach(countries, id: \.name) { country in
                             Button {
-                                countryCode = country.code
+                                countryName = country.name
                                 countrySearchText = ""
                                 showingCountryPicker = false
                             } label: {
                                 HStack {
-                                    Text(country.flag).font(.title2)
+                                    Text(country.flag)
+                                        .font(.title2)
                                     HStack(spacing: 8) {
-                                        Text(country.name).foregroundStyle(.primary)
-                                        Text(country.code).foregroundStyle(.secondary)
+                                        Text(country.name)
+                                            .foregroundStyle(.primary)
+                                        Text(country.code)
+                                            .foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    if countryCode == country.code {
-                                        Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                                    if countryName == country.name {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(Color.accentColor)
                                     }
                                 }
                             }
@@ -1369,8 +1622,11 @@ struct SWAuthView: View {
             .navigationTitle("Select Country")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { countrySearchText = ""; showingCountryPicker = false }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        countrySearchText = ""
+                        showingCountryPicker = false
+                    }
                 }
             }
         }
@@ -1381,41 +1637,247 @@ struct SWAuthView: View {
     @ViewBuilder
     private var socialSignInSection: some View {
         VStack(spacing: 16) {
+            // Divider
             HStack {
-                Rectangle().fill(.tertiary).frame(height: 1)
-                Text("or continue with").font(.subheadline).foregroundStyle(.secondary)
-                Rectangle().fill(.tertiary).frame(height: 1)
+                Rectangle()
+                    .fill(.tertiary)
+                    .frame(height: 1)
+                Text("or continue with")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Rectangle()
+                    .fill(.tertiary)
+                    .frame(height: 1)
             }
             .padding(.top, 16)
 
+            // Social sign-in buttons
             HStack(spacing: 12) {
-                Button { signInWithApple() } label: {
+                // Apple sign-in
+                Button {
+                    signInWithApple()
+                } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "apple.logo").font(.system(size: 18))
+                        Image(systemName: "apple.logo")
+                            .font(.system(size: 18))
                         Text("Apple")
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.swSecondary)
 
-                Button { signInWithGoogle() } label: {
+                // Google sign-in
+                Button {
+                    signInWithGoogle()
+                } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "g.circle.fill").font(.system(size: 18))
+                        Image(systemName: "g.circle.fill")
+                            .font(.system(size: 18))
                         Text("Google")
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.swSecondary)
             }
 
+            // User agreement
             SWAgreementChecker(agreementChecked: $agreementChecked)
         }
     }
 
-    // MARK: - Helper
+    // MARK: - Actions
 
+    private func demoGuard() -> Bool {
+        guard isDemo else { return false }
+        SWAlertManager.shared.show(.info, message: "UI Demo — auth actions are not functional")
+        return true
+    }
+
+    private func signInWithEmail() {
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
+        loadingState = .signingIn
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.signIn(email: email, password: password)
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func signUpWithEmail() {
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
+        loadingState = .signingIn
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.signUp(email: email, password: password)
+                withAnimation {
+                    viewMode = .confirmSignUp
+                }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func confirmSignUp() {
+        guard !demoGuard() else { return }
+        loadingState = .verifying
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.confirmSignUp(email: email, code: verificationCode)
+                try await userManager.signIn(email: email, password: password)
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func resendEmailCode() {
+        guard !demoGuard() else { return }
+        loadingState = .sendingCode
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.resendSignUpCode(email: email)
+                SWAlertManager.shared.show(.success, message: "Code sent to \(email)")
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func sendResetCode() {
+        guard !demoGuard() else { return }
+        loadingState = .sendingCode
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.forgotPassword(email: email)
+                withAnimation {
+                    viewMode = .resetPassword
+                }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func confirmResetPassword() {
+        guard !demoGuard() else { return }
+        loadingState = .verifying
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.confirmResetPassword(email: email, newPassword: newPassword, code: resetCode)
+                SWAlertManager.shared.show(.success, message: "Password reset successfully")
+                withAnimation {
+                    signInMethod = .email
+                    viewMode = .signIn
+                    resetCode = ""
+                    newPassword = ""
+                    confirmNewPassword = ""
+                    password = ""
+                }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    // MARK: - Phone Actions
+
+    private func sendPhoneCode() {
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
+        loadingState = .sendingCode
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.sendPhoneVerificationCode(phoneNumber: fullPhoneNumber)
+                withAnimation { viewMode = .phoneVerify }
+                SWAlertManager.shared.show(.success, message: "Code sent to \(fullPhoneNumber)")
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func verifyPhoneCode() {
+        guard !demoGuard() else { return }
+        loadingState = .verifying
+        Task {
+            defer { loadingState = .idle }
+            do {
+                try await userManager.confirmPhoneSignIn(phoneNumber: fullPhoneNumber, code: verificationCode)
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func resendPhoneCode() {
+        guard !demoGuard() else { return }
+        isResending = true
+        Task {
+            defer { isResending = false }
+            do {
+                try await userManager.sendPhoneVerificationCode(phoneNumber: fullPhoneNumber)
+                SWAlertManager.shared.show(.success, message: "Code sent to \(fullPhoneNumber)")
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func signInWithApple() {
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
+        Task {
+            do {
+                try await userManager.signInWithApple()
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+
+    private func signInWithGoogle() {
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
+        Task {
+            do {
+                try await userManager.signInWithGoogle()
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+    // MARK: - Helpers
+
+    /// Sign-in method toggle button: selected state uses accentColor + capsule background; unselected uses secondary
     private func signInMethodButton(_ method: SignInMethod, icon: String, label: String) -> some View {
-        Button { withAnimation { signInMethod = method } } label: {
+        Button {
+            withAnimation { signInMethod = method }
+        } label: {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                 Text(label)
@@ -1431,129 +1893,684 @@ struct SWAuthView: View {
             )
         }
     }
+}
+
+#Preview {
+    SWAuthView()
+        .environment(SWUserManager(skipAuthCheck: true))
+}
+
+// MARK: - Auth Error Localization
+
+/// Converts auth errors to user-friendly messages.
+/// Scoped to this file to avoid polluting the global Error namespace in consuming apps.
+private enum SWAuthErrorHelper {
+
+    /// Returns a user-friendly message for any error thrown by Amplify Auth operations
+    static func displayMessage(for error: Error) -> String {
+        if let authError = error as? AuthError {
+            if let cognitoError = authError.underlyingError as? AWSCognitoAuthError {
+                return cognitoMessage(for: cognitoError)
+            }
+            return authMessage(for: authError)
+        }
+        return error.localizedDescription
+    }
+
+    // MARK: - AuthError Messages
+
+    private static func authMessage(for error: AuthError) -> String {
+        switch error {
+        case .notAuthorized:
+            return "Incorrect email or password"
+        case .signedOut:
+            return "Please sign in first"
+        case .validation:
+            return "Invalid input"
+        case .configuration:
+            return "App configuration error"
+        case .service, .unknown, .invalidState:
+            let desc = error.errorDescription.lowercased()
+            if desc.contains("incorrect username or password") {
+                return "Incorrect email or password"
+            }
+            if desc.contains("user does not exist") || desc.contains("user not found") {
+                return "This email is not registered"
+            }
+            if desc.contains("user is not confirmed") {
+                return "Please verify your email first"
+            }
+            return "Service error, please try again"
+        default:
+            return "Operation failed, please try again"
+        }
+    }
+
+    // MARK: - AWSCognitoAuthError Messages
+
+    private static func cognitoMessage(for error: AWSCognitoAuthError) -> String {
+        switch error {
+        case .userNotFound:
+            return "This email is not registered"
+        case .userNotConfirmed:
+            return "Please verify your email first"
+        case .usernameExists:
+            return "This email is already registered"
+        case .codeDelivery:
+            return "Failed to send verification code"
+        case .codeMismatch:
+            return "Incorrect verification code"
+        case .codeExpired:
+            return "Verification code expired"
+        case .invalidPassword:
+            return "Password must be at least 8 characters"
+        case .limitExceeded, .failedAttemptsLimitExceeded, .requestLimitExceeded, .limitExceededException:
+            return "Too many attempts, please try again later"
+        case .network, .lambda, .externalServiceException:
+            return "Network error, please try again"
+        default:
+            return "An error occurred, please try again"
+        }
+    }
+}
+```
+
+#### 3. SWAuthView+macOS.swift — Authentication panel (macOS)
+
+The macOS counterpart: a centered 380pt panel with native control styles and the same flows minus phone sign-in.
+
+```swift
+import SwiftUI
+import Amplify
+import AWSCognitoAuthPlugin
+
+struct SWAuthView: View {
+
+    var isDemo: Bool = false
+
+    // MARK: - Environment
+
+    @Environment(SWUserManager.self) private var userManager
+
+    // MARK: - View Mode
+
+    private enum ViewMode {
+        case signIn
+        case signUp
+        case confirmSignUp
+        case forgotPassword
+        case resetPassword
+    }
+
+    private enum LoadingState {
+        case idle
+        case sendingCode
+        case verifying
+        case signingIn
+    }
+
+    // MARK: - State
+
+    @State private var viewMode: ViewMode = .signIn
+    @State private var loadingState: LoadingState = .idle
+    @State private var agreementChecked = false
+
+    @State private var email = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var verificationCode = ""
+    @FocusState private var isCodeFocused: Bool
+
+    @State private var newPassword = ""
+    @State private var confirmNewPassword = ""
+    @State private var resetCode = ""
+
+    // MARK: - Validation
+
+    private var isValidEmail: Bool {
+        email.range(of: #"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"#,
+                    options: .regularExpression) != nil
+    }
+    private var isValidPassword: Bool { password.count >= 8 }
+    private var passwordsMatch: Bool { password == confirmPassword }
+    private var isValidCode: Bool { verificationCode.count == 6 }
+    private var isValidResetCode: Bool { resetCode.count == 6 }
+    private var isValidNewPassword: Bool { newPassword.count >= 8 }
+    private var newPasswordsMatch: Bool { newPassword == confirmNewPassword }
+
+    private var isEmailFormValid: Bool {
+        viewMode == .signUp
+            ? isValidEmail && isValidPassword && passwordsMatch
+            : isValidEmail && isValidPassword
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        ZStack {
+            Color(NSColor.windowBackgroundColor).ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 40)
+                    panel
+                    Spacer(minLength: 40)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    // MARK: - Panel
+
+    private var panel: some View {
+        VStack(spacing: 28) {
+            header
+
+            switch viewMode {
+            case .signIn:         signInSection
+            case .signUp:         signUpSection
+            case .confirmSignUp:  confirmSignUpSection
+            case .forgotPassword: forgotPasswordSection
+            case .resetPassword:  resetPasswordSection
+            }
+        }
+        .padding(36)
+        .frame(maxWidth: 380)
+        .background(Color(NSColor.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 4)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "person.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 56, height: 56)
+                .foregroundStyle(Color.accentColor)
+
+            Text(headerTitle)
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text(headerSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private var headerTitle: String {
+        switch viewMode {
+        case .signIn:         "Welcome Back"
+        case .signUp:         "Create Account"
+        case .confirmSignUp:  "Verify Email"
+        case .forgotPassword: "Forgot Password"
+        case .resetPassword:  "Reset Password"
+        }
+    }
+
+    private var headerSubtitle: String {
+        switch viewMode {
+        case .signIn:         "Sign in to continue"
+        case .signUp:         "Sign up with your email"
+        case .confirmSignUp:  "Enter the 6-digit code sent to \(email)"
+        case .forgotPassword: "Enter your email to receive a reset code"
+        case .resetPassword:  "Enter the code and your new password"
+        }
+    }
+
+    // MARK: - Sign In
+
+    private var signInSection: some View {
+        VStack(spacing: 16) {
+            emailField
+            passwordField(text: $password, placeholder: "Password", newPassword: false)
+
+            SWAgreementChecker(agreementChecked: $agreementChecked)
+
+            primaryButton(
+                title: "Sign In",
+                loadingTitle: "Signing In…",
+                isLoading: loadingState == .signingIn,
+                disabled: !isEmailFormValid || !agreementChecked
+            ) { signInWithEmail() }
+
+            HStack(spacing: 20) {
+                linkButton("Forgot Password?") {
+                    withAnimation { viewMode = .forgotPassword }
+                }
+                linkButton("Create Account") {
+                    withAnimation { viewMode = .signUp; confirmPassword = "" }
+                }
+            }
+
+            socialDivider
+
+            socialButtons
+        }
+    }
+
+    // MARK: - Sign Up
+
+    private var signUpSection: some View {
+        VStack(spacing: 12) {
+            emailField
+            passwordField(text: $password, placeholder: "Password", newPassword: true)
+
+            if !password.isEmpty {
+                passwordHint(valid: isValidPassword)
+            }
+
+            passwordField(text: $confirmPassword, placeholder: "Confirm Password", newPassword: true)
+
+            if !confirmPassword.isEmpty && !passwordsMatch {
+                Text("Passwords do not match")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            SWAgreementChecker(agreementChecked: $agreementChecked)
+
+            primaryButton(
+                title: "Create Account",
+                loadingTitle: "Creating…",
+                isLoading: loadingState == .signingIn,
+                disabled: !isEmailFormValid || !agreementChecked
+            ) { signUpWithEmail() }
+
+            linkButton("Already have an account? Sign In") {
+                withAnimation { viewMode = .signIn }
+            }
+        }
+    }
+
+    // MARK: - Confirm Sign Up
+
+    private var confirmSignUpSection: some View {
+        VStack(spacing: 16) {
+            codeField(text: $verificationCode)
+
+            primaryButton(
+                title: "Verify Email",
+                loadingTitle: "Verifying…",
+                isLoading: loadingState == .verifying,
+                disabled: !isValidCode
+            ) { confirmSignUp() }
+
+            HStack(spacing: 20) {
+                linkButton("Resend Code") { resendEmailCode() }
+                linkButton("Back to Sign In") {
+                    withAnimation { viewMode = .signIn; verificationCode = "" }
+                }
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(300))
+            isCodeFocused = true
+        }
+    }
+
+    // MARK: - Forgot Password
+
+    private var forgotPasswordSection: some View {
+        VStack(spacing: 16) {
+            emailField
+
+            primaryButton(
+                title: "Send Reset Code",
+                loadingTitle: "Sending…",
+                isLoading: loadingState == .sendingCode,
+                disabled: !isValidEmail
+            ) { sendResetCode() }
+
+            backToSignIn
+        }
+    }
+
+    // MARK: - Reset Password
+
+    private var resetPasswordSection: some View {
+        VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Verification Code").font(.caption).foregroundStyle(.secondary)
+                codeField(text: $resetCode)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("New Password").font(.caption).foregroundStyle(.secondary)
+                passwordField(text: $newPassword, placeholder: "New Password", newPassword: true)
+            }
+
+            if !newPassword.isEmpty {
+                passwordHint(valid: isValidNewPassword)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Confirm New Password").font(.caption).foregroundStyle(.secondary)
+                passwordField(text: $confirmNewPassword, placeholder: "Confirm New Password", newPassword: true)
+                if !confirmNewPassword.isEmpty && !newPasswordsMatch {
+                    Text("Passwords do not match")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            primaryButton(
+                title: "Reset Password",
+                loadingTitle: "Resetting…",
+                isLoading: loadingState == .verifying,
+                disabled: !isValidResetCode || !isValidNewPassword || !newPasswordsMatch
+            ) { confirmResetPassword() }
+
+            backToSignIn
+        }
+    }
+
+    // MARK: - Reusable Controls
+
+    private var emailField: some View {
+        TextField("Email", text: $email)
+            .textContentType(.emailAddress)
+            .autocorrectionDisabled()
+            .textFieldStyle(.roundedBorder)
+    }
+
+    private func passwordField(text: Binding<String>, placeholder: String, newPassword: Bool) -> some View {
+        SecureField(placeholder, text: text)
+            .textContentType(newPassword ? .newPassword : .password)
+            .textFieldStyle(.roundedBorder)
+    }
+
+    private func codeField(text: Binding<String>) -> some View {
+        TextField("000000", text: text)
+            .textContentType(.oneTimeCode)
+            .focused($isCodeFocused)
+            .multilineTextAlignment(.center)
+            .font(.title2.monospacedDigit())
+            .textFieldStyle(.roundedBorder)
+            .onChange(of: text.wrappedValue) { _, newValue in
+                text.wrappedValue = String(newValue.filter(\.isNumber).prefix(6))
+            }
+    }
+
+    private func passwordHint(valid: Bool) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: valid ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(valid ? .green : .secondary)
+            Text("At least 8 characters")
+                .foregroundStyle(valid ? .primary : .secondary)
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func primaryButton(
+        title: String,
+        loadingTitle: String,
+        isLoading: Bool,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if isLoading { ProgressView().controlSize(.small) }
+                Text(isLoading ? loadingTitle : title)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(disabled || isLoading)
+    }
+
+    private func linkButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.subheadline)
+            .foregroundStyle(Color.accentColor)
+    }
+
+    private var backToSignIn: some View {
+        linkButton("Back to Sign In") {
+            withAnimation {
+                viewMode = .signIn
+                verificationCode = ""
+                resetCode = ""
+                newPassword = ""
+                confirmNewPassword = ""
+            }
+        }
+    }
+
+    private var socialDivider: some View {
+        HStack {
+            Rectangle().fill(.tertiary).frame(height: 1)
+            Text("or continue with")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Rectangle().fill(.tertiary).frame(height: 1)
+        }
+    }
+
+    private var socialButtons: some View {
+        HStack(spacing: 12) {
+            Button {
+                signInWithApple()
+            } label: {
+                Label("Apple", systemImage: "apple.logo")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+
+            Button {
+                signInWithGoogle()
+            } label: {
+                Label("Google", systemImage: "g.circle.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+    }
 
     // MARK: - Actions
 
+    private func demoGuard() -> Bool {
+        guard isDemo else { return false }
+        SWAlertManager.shared.show(.info, message: "UI Demo — auth actions are not functional")
+        return true
+    }
+
     private func signInWithEmail() {
-        guard agreementChecked else { return }
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
         loadingState = .signingIn
         Task {
             defer { loadingState = .idle }
-            do { try await userManager.signIn(email: email, password: password) }
-            catch { /* show error via your alert system */ }
+            do {
+                try await userManager.signIn(email: email, password: password)
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func signUpWithEmail() {
-        guard agreementChecked else { return }
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
         loadingState = .signingIn
         Task {
             defer { loadingState = .idle }
             do {
                 try await userManager.signUp(email: email, password: password)
                 withAnimation { viewMode = .confirmSignUp }
-            } catch { /* show error */ }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func confirmSignUp() {
+        guard !demoGuard() else { return }
         loadingState = .verifying
         Task {
             defer { loadingState = .idle }
             do {
                 try await userManager.confirmSignUp(email: email, code: verificationCode)
                 try await userManager.signIn(email: email, password: password)
-            } catch { /* show error */ }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func resendEmailCode() {
-        loadingState = .sendingCode
+        guard !demoGuard() else { return }
         Task {
-            defer { loadingState = .idle }
-            do { try await userManager.resendSignUpCode(email: email) }
-            catch { /* show error */ }
+            do {
+                try await userManager.resendSignUpCode(email: email)
+                SWAlertManager.shared.show(.success, message: "Code sent to \(email)")
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func sendResetCode() {
+        guard !demoGuard() else { return }
         loadingState = .sendingCode
         Task {
             defer { loadingState = .idle }
             do {
                 try await userManager.forgotPassword(email: email)
                 withAnimation { viewMode = .resetPassword }
-            } catch { /* show error */ }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func confirmResetPassword() {
+        guard !demoGuard() else { return }
         loadingState = .verifying
         Task {
             defer { loadingState = .idle }
             do {
-                try await userManager.confirmResetPassword(
-                    email: email, newPassword: newPassword, code: resetCode)
+                try await userManager.confirmResetPassword(email: email, newPassword: newPassword, code: resetCode)
+                SWAlertManager.shared.show(.success, message: "Password reset successfully")
                 withAnimation {
-                    signInMethod = .email; viewMode = .signIn
-                    resetCode = ""; newPassword = ""; confirmNewPassword = ""; password = ""
+                    viewMode = .signIn
+                    resetCode = ""
+                    newPassword = ""
+                    confirmNewPassword = ""
+                    password = ""
                 }
-            } catch { /* show error */ }
-        }
-    }
-
-    private func sendPhoneCode() {
-        guard agreementChecked else { return }
-        loadingState = .sendingCode
-        Task {
-            defer { loadingState = .idle }
-            do {
-                try await userManager.sendPhoneVerificationCode(phoneNumber: fullPhoneNumber)
-                withAnimation { viewMode = .phoneVerify }
-            } catch { /* show error */ }
-        }
-    }
-
-    private func verifyPhoneCode() {
-        loadingState = .verifying
-        Task {
-            defer { loadingState = .idle }
-            do {
-                try await userManager.confirmPhoneSignIn(
-                    phoneNumber: fullPhoneNumber, code: verificationCode)
-            } catch { /* show error */ }
-        }
-    }
-
-    private func resendPhoneCode() {
-        isResending = true
-        Task {
-            defer { isResending = false }
-            do {
-                try await userManager.sendPhoneVerificationCode(phoneNumber: fullPhoneNumber)
-            } catch { /* show error */ }
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func signInWithApple() {
-        guard agreementChecked else { return }
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
         Task {
-            do { try await userManager.signInWithApple() }
-            catch { /* show error */ }
+            do {
+                try await userManager.signInWithApple()
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
         }
     }
 
     private func signInWithGoogle() {
-        guard agreementChecked else { return }
+        guard !demoGuard() else { return }
+        guard agreementChecked else {
+            SWAlertManager.shared.show(.error, message: "Please agree to the Terms of Service and Privacy Policy")
+            return
+        }
         Task {
-            do { try await userManager.signInWithGoogle() }
-            catch { /* show error */ }
+            do {
+                try await userManager.signInWithGoogle()
+            } catch {
+                SWAlertManager.shared.show(.error, message: SWMacAuthErrorHelper.displayMessage(for: error))
+            }
+        }
+    }
+}
+
+#Preview {
+    SWAuthView()
+        .environment(SWUserManager(skipAuthCheck: true))
+        .frame(width: 600, height: 700)
+}
+
+// MARK: - Auth Error Localization
+
+private enum SWMacAuthErrorHelper {
+
+    static func displayMessage(for error: Error) -> String {
+        if let authError = error as? AuthError {
+            if let cognitoError = authError.underlyingError as? AWSCognitoAuthError {
+                return cognitoMessage(for: cognitoError)
+            }
+            return authMessage(for: authError)
+        }
+        return error.localizedDescription
+    }
+
+    private static func authMessage(for error: AuthError) -> String {
+        switch error {
+        case .notAuthorized:   return "Incorrect email or password"
+        case .signedOut:       return "Please sign in first"
+        case .validation:      return "Invalid input"
+        case .configuration:   return "App configuration error"
+        default:
+            let desc = error.errorDescription.lowercased()
+            if desc.contains("incorrect username or password") { return "Incorrect email or password" }
+            if desc.contains("user does not exist")            { return "This email is not registered" }
+            if desc.contains("user is not confirmed")          { return "Please verify your email first" }
+            return "Service error, please try again"
+        }
+    }
+
+    private static func cognitoMessage(for error: AWSCognitoAuthError) -> String {
+        switch error {
+        case .userNotFound:        return "This email is not registered"
+        case .userNotConfirmed:    return "Please verify your email first"
+        case .usernameExists:      return "This email is already registered"
+        case .codeDelivery:        return "Failed to send verification code"
+        case .codeMismatch:        return "Incorrect verification code"
+        case .codeExpired:         return "Verification code expired"
+        case .invalidPassword:     return "Password must be at least 8 characters"
+        case .limitExceeded, .failedAttemptsLimitExceeded, .requestLimitExceeded, .limitExceededException:
+            return "Too many attempts, please try again later"
+        case .network, .lambda, .externalServiceException:
+            return "Network error, please try again"
+        default:                   return "An error occurred, please try again"
         }
     }
 }
 ```
 
-#### 3. SWAgreementChecker.swift — Terms of Service checkbox
+#### 4. SWAgreementChecker.swift — Terms of Service checkbox
+
+`termsURL` and `privacyURL` default to ShipSwift's pages; pass your own.
 
 ```swift
 import SwiftUI
@@ -1561,33 +2578,38 @@ import SwiftUI
 struct SWAgreementChecker: View {
     @Binding var agreementChecked: Bool
 
-    var termsURL: URL = URL(string: "https://yourapp.com/terms")!
-    var privacyURL: URL = URL(string: "https://yourapp.com/privacy")!
+    var termsURL: URL = URL(string: "https://shipswift.app/terms")!
+    var privacyURL: URL = URL(string: "https://shipswift.app/privacy")!
 
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
             Button {
                 agreementChecked.toggle()
             } label: {
                 Image(systemName: agreementChecked ? "checkmark.circle.fill" : "circle")
                     .imageScale(.small)
             }
+            .buttonStyle(.plain)
 
-            HStack {
-                Text("By signing in, you agree to")
+            HStack(spacing: 4) {
+                Text("I agree to")
                     .foregroundStyle(.secondary)
-                Link(destination: termsURL) { Text("Terms of Service") }
-                Text("and").foregroundStyle(.secondary)
-                Link(destination: privacyURL) { Text("Privacy Policy") }
+                Link("Terms of Service", destination: termsURL)
+                Text("and")
+                    .foregroundStyle(.secondary)
+                Link("Privacy Policy", destination: privacyURL)
             }
             .font(.caption2)
+            .lineLimit(1)
         }
-        .padding(.top)
+        .padding(.top, 4)
     }
 }
 ```
 
-#### 4. SWCountryData.swift — Phone country codes (excerpt)
+#### 5. SWCountryData.swift — Phone country codes
+
+Several countries share a dial code (`+1`, `+7`), so `flag(for:)` and `phoneLength(for:)` return the first match for that code; `SWAuthView+iOS.swift` therefore tracks the selected country by name.
 
 ```swift
 import Foundation
@@ -1602,7 +2624,7 @@ struct SWCountry {
 struct SWCountryData {
     /// Look up country flag by phone code
     static func flag(for code: String) -> String {
-        allCountries.first { $0.code == code }?.flag ?? "globe"
+        allCountries.first { $0.code == code }?.flag ?? "🌍"
     }
 
     /// Get phone number length range by country code
@@ -1611,24 +2633,406 @@ struct SWCountryData {
     }
 
     static let allCountries: [SWCountry] = [
-        SWCountry(code: "+1", flag: "US", name: "United States", phoneLength: 10...10),
-        SWCountry(code: "+1", flag: "CA", name: "Canada", phoneLength: 10...10),
-        SWCountry(code: "+44", flag: "GB", name: "United Kingdom", phoneLength: 10...10),
-        SWCountry(code: "+86", flag: "CN", name: "China", phoneLength: 11...11),
-        SWCountry(code: "+81", flag: "JP", name: "Japan", phoneLength: 10...10),
-        SWCountry(code: "+82", flag: "KR", name: "South Korea", phoneLength: 10...11),
-        SWCountry(code: "+91", flag: "IN", name: "India", phoneLength: 10...10),
-        SWCountry(code: "+49", flag: "DE", name: "Germany", phoneLength: 10...11),
-        SWCountry(code: "+33", flag: "FR", name: "France", phoneLength: 9...9),
-        SWCountry(code: "+61", flag: "AU", name: "Australia", phoneLength: 9...9),
-        SWCountry(code: "+55", flag: "BR", name: "Brazil", phoneLength: 10...11),
-        SWCountry(code: "+52", flag: "MX", name: "Mexico", phoneLength: 10...10),
-        // ... 200+ countries in the full file
+        // A
+        SWCountry(code: "+93", flag: "🇦🇫", name: "Afghanistan", phoneLength: 9...9),
+        SWCountry(code: "+355", flag: "🇦🇱", name: "Albania", phoneLength: 9...9),
+        SWCountry(code: "+213", flag: "🇩🇿", name: "Algeria", phoneLength: 9...9),
+        SWCountry(code: "+1", flag: "🇦🇸", name: "American Samoa", phoneLength: 10...10),
+        SWCountry(code: "+376", flag: "🇦🇩", name: "Andorra", phoneLength: 6...9),
+        SWCountry(code: "+244", flag: "🇦🇴", name: "Angola", phoneLength: 9...9),
+        SWCountry(code: "+1", flag: "🇦🇮", name: "Anguilla", phoneLength: 10...10),
+        SWCountry(code: "+1", flag: "🇦🇬", name: "Antigua and Barbuda", phoneLength: 10...10),
+        SWCountry(code: "+54", flag: "🇦🇷", name: "Argentina", phoneLength: 10...10),
+        SWCountry(code: "+374", flag: "🇦🇲", name: "Armenia", phoneLength: 8...8),
+        SWCountry(code: "+297", flag: "🇦🇼", name: "Aruba", phoneLength: 7...7),
+        SWCountry(code: "+61", flag: "🇦🇺", name: "Australia", phoneLength: 9...9),
+        SWCountry(code: "+43", flag: "🇦🇹", name: "Austria", phoneLength: 10...11),
+        SWCountry(code: "+994", flag: "🇦🇿", name: "Azerbaijan", phoneLength: 9...9),
+
+        // B
+        SWCountry(code: "+1", flag: "🇧🇸", name: "Bahamas", phoneLength: 10...10),
+        SWCountry(code: "+973", flag: "🇧🇭", name: "Bahrain", phoneLength: 8...8),
+        SWCountry(code: "+880", flag: "🇧🇩", name: "Bangladesh", phoneLength: 10...10),
+        SWCountry(code: "+1", flag: "🇧🇧", name: "Barbados", phoneLength: 10...10),
+        SWCountry(code: "+375", flag: "🇧🇾", name: "Belarus", phoneLength: 9...9),
+        SWCountry(code: "+32", flag: "🇧🇪", name: "Belgium", phoneLength: 9...9),
+        SWCountry(code: "+501", flag: "🇧🇿", name: "Belize", phoneLength: 7...7),
+        SWCountry(code: "+229", flag: "🇧🇯", name: "Benin", phoneLength: 8...8),
+        SWCountry(code: "+1", flag: "🇧🇲", name: "Bermuda", phoneLength: 10...10),
+        SWCountry(code: "+975", flag: "🇧🇹", name: "Bhutan", phoneLength: 8...8),
+        SWCountry(code: "+591", flag: "🇧🇴", name: "Bolivia", phoneLength: 8...8),
+        SWCountry(code: "+387", flag: "🇧🇦", name: "Bosnia and Herzegovina", phoneLength: 8...9),
+        SWCountry(code: "+267", flag: "🇧🇼", name: "Botswana", phoneLength: 8...8),
+        SWCountry(code: "+55", flag: "🇧🇷", name: "Brazil", phoneLength: 10...11),
+        SWCountry(code: "+1", flag: "🇻🇬", name: "British Virgin Islands", phoneLength: 10...10),
+        SWCountry(code: "+673", flag: "🇧🇳", name: "Brunei", phoneLength: 7...7),
+        SWCountry(code: "+359", flag: "🇧🇬", name: "Bulgaria", phoneLength: 9...9),
+        SWCountry(code: "+226", flag: "🇧🇫", name: "Burkina Faso", phoneLength: 8...8),
+        SWCountry(code: "+257", flag: "🇧🇮", name: "Burundi", phoneLength: 8...8),
+
+        // C
+        SWCountry(code: "+855", flag: "🇰🇭", name: "Cambodia", phoneLength: 8...9),
+        SWCountry(code: "+237", flag: "🇨🇲", name: "Cameroon", phoneLength: 9...9),
+        SWCountry(code: "+1", flag: "🇨🇦", name: "Canada", phoneLength: 10...10),
+        SWCountry(code: "+238", flag: "🇨🇻", name: "Cape Verde", phoneLength: 7...7),
+        SWCountry(code: "+1", flag: "🇰🇾", name: "Cayman Islands", phoneLength: 10...10),
+        SWCountry(code: "+236", flag: "🇨🇫", name: "Central African Republic", phoneLength: 8...8),
+        SWCountry(code: "+235", flag: "🇹🇩", name: "Chad", phoneLength: 8...8),
+        SWCountry(code: "+56", flag: "🇨🇱", name: "Chile", phoneLength: 9...9),
+        SWCountry(code: "+86", flag: "🇨🇳", name: "China", phoneLength: 11...11),
+        SWCountry(code: "+57", flag: "🇨🇴", name: "Colombia", phoneLength: 10...10),
+        SWCountry(code: "+269", flag: "🇰🇲", name: "Comoros", phoneLength: 7...7),
+        SWCountry(code: "+242", flag: "🇨🇬", name: "Congo", phoneLength: 9...9),
+        SWCountry(code: "+243", flag: "🇨🇩", name: "Congo (DRC)", phoneLength: 9...9),
+        SWCountry(code: "+682", flag: "🇨🇰", name: "Cook Islands", phoneLength: 5...5),
+        SWCountry(code: "+506", flag: "🇨🇷", name: "Costa Rica", phoneLength: 8...8),
+        SWCountry(code: "+225", flag: "🇨🇮", name: "Côte d'Ivoire", phoneLength: 10...10),
+        SWCountry(code: "+385", flag: "🇭🇷", name: "Croatia", phoneLength: 9...9),
+        SWCountry(code: "+53", flag: "🇨🇺", name: "Cuba", phoneLength: 8...8),
+        SWCountry(code: "+357", flag: "🇨🇾", name: "Cyprus", phoneLength: 8...8),
+        SWCountry(code: "+420", flag: "🇨🇿", name: "Czech Republic", phoneLength: 9...9),
+
+        // D
+        SWCountry(code: "+45", flag: "🇩🇰", name: "Denmark", phoneLength: 8...8),
+        SWCountry(code: "+253", flag: "🇩🇯", name: "Djibouti", phoneLength: 8...8),
+        SWCountry(code: "+1", flag: "🇩🇲", name: "Dominica", phoneLength: 10...10),
+        SWCountry(code: "+1", flag: "🇩🇴", name: "Dominican Republic", phoneLength: 10...10),
+
+        // E
+        SWCountry(code: "+593", flag: "🇪🇨", name: "Ecuador", phoneLength: 9...9),
+        SWCountry(code: "+20", flag: "🇪🇬", name: "Egypt", phoneLength: 10...10),
+        SWCountry(code: "+503", flag: "🇸🇻", name: "El Salvador", phoneLength: 8...8),
+        SWCountry(code: "+240", flag: "🇬🇶", name: "Equatorial Guinea", phoneLength: 9...9),
+        SWCountry(code: "+291", flag: "🇪🇷", name: "Eritrea", phoneLength: 7...7),
+        SWCountry(code: "+372", flag: "🇪🇪", name: "Estonia", phoneLength: 7...8),
+        SWCountry(code: "+251", flag: "🇪🇹", name: "Ethiopia", phoneLength: 9...9),
+
+        // F
+        SWCountry(code: "+500", flag: "🇫🇰", name: "Falkland Islands", phoneLength: 5...5),
+        SWCountry(code: "+298", flag: "🇫🇴", name: "Faroe Islands", phoneLength: 6...6),
+        SWCountry(code: "+679", flag: "🇫🇯", name: "Fiji", phoneLength: 7...7),
+        SWCountry(code: "+358", flag: "🇫🇮", name: "Finland", phoneLength: 9...10),
+        SWCountry(code: "+33", flag: "🇫🇷", name: "France", phoneLength: 9...9),
+        SWCountry(code: "+594", flag: "🇬🇫", name: "French Guiana", phoneLength: 9...9),
+        SWCountry(code: "+689", flag: "🇵🇫", name: "French Polynesia", phoneLength: 8...8),
+
+        // G
+        SWCountry(code: "+241", flag: "🇬🇦", name: "Gabon", phoneLength: 7...8),
+        SWCountry(code: "+220", flag: "🇬🇲", name: "Gambia", phoneLength: 7...7),
+        SWCountry(code: "+995", flag: "🇬🇪", name: "Georgia", phoneLength: 9...9),
+        SWCountry(code: "+49", flag: "🇩🇪", name: "Germany", phoneLength: 10...11),
+        SWCountry(code: "+233", flag: "🇬🇭", name: "Ghana", phoneLength: 9...9),
+        SWCountry(code: "+350", flag: "🇬🇮", name: "Gibraltar", phoneLength: 8...8),
+        SWCountry(code: "+30", flag: "🇬🇷", name: "Greece", phoneLength: 10...10),
+        SWCountry(code: "+299", flag: "🇬🇱", name: "Greenland", phoneLength: 6...6),
+        SWCountry(code: "+1", flag: "🇬🇩", name: "Grenada", phoneLength: 10...10),
+        SWCountry(code: "+590", flag: "🇬🇵", name: "Guadeloupe", phoneLength: 9...9),
+        SWCountry(code: "+1", flag: "🇬🇺", name: "Guam", phoneLength: 10...10),
+        SWCountry(code: "+502", flag: "🇬🇹", name: "Guatemala", phoneLength: 8...8),
+        SWCountry(code: "+224", flag: "🇬🇳", name: "Guinea", phoneLength: 9...9),
+        SWCountry(code: "+245", flag: "🇬🇼", name: "Guinea-Bissau", phoneLength: 7...7),
+        SWCountry(code: "+592", flag: "🇬🇾", name: "Guyana", phoneLength: 7...7),
+
+        // H
+        SWCountry(code: "+509", flag: "🇭🇹", name: "Haiti", phoneLength: 8...8),
+        SWCountry(code: "+504", flag: "🇭🇳", name: "Honduras", phoneLength: 8...8),
+        SWCountry(code: "+852", flag: "🇭🇰", name: "Hong Kong", phoneLength: 8...8),
+        SWCountry(code: "+36", flag: "🇭🇺", name: "Hungary", phoneLength: 9...9),
+
+        // I
+        SWCountry(code: "+354", flag: "🇮🇸", name: "Iceland", phoneLength: 7...7),
+        SWCountry(code: "+91", flag: "🇮🇳", name: "India", phoneLength: 10...10),
+        SWCountry(code: "+62", flag: "🇮🇩", name: "Indonesia", phoneLength: 10...12),
+        SWCountry(code: "+98", flag: "🇮🇷", name: "Iran", phoneLength: 10...10),
+        SWCountry(code: "+964", flag: "🇮🇶", name: "Iraq", phoneLength: 10...10),
+        SWCountry(code: "+353", flag: "🇮🇪", name: "Ireland", phoneLength: 9...9),
+        SWCountry(code: "+972", flag: "🇮🇱", name: "Israel", phoneLength: 9...9),
+        SWCountry(code: "+39", flag: "🇮🇹", name: "Italy", phoneLength: 10...10),
+
+        // J
+        SWCountry(code: "+1", flag: "🇯🇲", name: "Jamaica", phoneLength: 10...10),
+        SWCountry(code: "+81", flag: "🇯🇵", name: "Japan", phoneLength: 10...10),
+        SWCountry(code: "+962", flag: "🇯🇴", name: "Jordan", phoneLength: 9...9),
+
+        // K
+        SWCountry(code: "+7", flag: "🇰🇿", name: "Kazakhstan", phoneLength: 10...10),
+        SWCountry(code: "+254", flag: "🇰🇪", name: "Kenya", phoneLength: 9...9),
+        SWCountry(code: "+686", flag: "🇰🇮", name: "Kiribati", phoneLength: 8...8),
+        SWCountry(code: "+383", flag: "🇽🇰", name: "Kosovo", phoneLength: 8...9),
+        SWCountry(code: "+965", flag: "🇰🇼", name: "Kuwait", phoneLength: 8...8),
+        SWCountry(code: "+996", flag: "🇰🇬", name: "Kyrgyzstan", phoneLength: 9...9),
+
+        // L
+        SWCountry(code: "+856", flag: "🇱🇦", name: "Laos", phoneLength: 10...10),
+        SWCountry(code: "+371", flag: "🇱🇻", name: "Latvia", phoneLength: 8...8),
+        SWCountry(code: "+961", flag: "🇱🇧", name: "Lebanon", phoneLength: 7...8),
+        SWCountry(code: "+266", flag: "🇱🇸", name: "Lesotho", phoneLength: 8...8),
+        SWCountry(code: "+231", flag: "🇱🇷", name: "Liberia", phoneLength: 7...8),
+        SWCountry(code: "+218", flag: "🇱🇾", name: "Libya", phoneLength: 9...9),
+        SWCountry(code: "+423", flag: "🇱🇮", name: "Liechtenstein", phoneLength: 7...7),
+        SWCountry(code: "+370", flag: "🇱🇹", name: "Lithuania", phoneLength: 8...8),
+        SWCountry(code: "+352", flag: "🇱🇺", name: "Luxembourg", phoneLength: 9...9),
+
+        // M
+        SWCountry(code: "+853", flag: "🇲🇴", name: "Macau", phoneLength: 8...8),
+        SWCountry(code: "+389", flag: "🇲🇰", name: "Macedonia", phoneLength: 8...8),
+        SWCountry(code: "+261", flag: "🇲🇬", name: "Madagascar", phoneLength: 9...9),
+        SWCountry(code: "+265", flag: "🇲🇼", name: "Malawi", phoneLength: 9...9),
+        SWCountry(code: "+60", flag: "🇲🇾", name: "Malaysia", phoneLength: 9...10),
+        SWCountry(code: "+960", flag: "🇲🇻", name: "Maldives", phoneLength: 7...7),
+        SWCountry(code: "+223", flag: "🇲🇱", name: "Mali", phoneLength: 8...8),
+        SWCountry(code: "+356", flag: "🇲🇹", name: "Malta", phoneLength: 8...8),
+        SWCountry(code: "+692", flag: "🇲🇭", name: "Marshall Islands", phoneLength: 7...7),
+        SWCountry(code: "+596", flag: "🇲🇶", name: "Martinique", phoneLength: 9...9),
+        SWCountry(code: "+222", flag: "🇲🇷", name: "Mauritania", phoneLength: 8...8),
+        SWCountry(code: "+230", flag: "🇲🇺", name: "Mauritius", phoneLength: 8...8),
+        SWCountry(code: "+52", flag: "🇲🇽", name: "Mexico", phoneLength: 10...10),
+        SWCountry(code: "+691", flag: "🇫🇲", name: "Micronesia", phoneLength: 7...7),
+        SWCountry(code: "+373", flag: "🇲🇩", name: "Moldova", phoneLength: 8...8),
+        SWCountry(code: "+377", flag: "🇲🇨", name: "Monaco", phoneLength: 8...9),
+        SWCountry(code: "+976", flag: "🇲🇳", name: "Mongolia", phoneLength: 8...8),
+        SWCountry(code: "+382", flag: "🇲🇪", name: "Montenegro", phoneLength: 8...8),
+        SWCountry(code: "+212", flag: "🇲🇦", name: "Morocco", phoneLength: 9...9),
+        SWCountry(code: "+258", flag: "🇲🇿", name: "Mozambique", phoneLength: 9...9),
+        SWCountry(code: "+95", flag: "🇲🇲", name: "Myanmar", phoneLength: 8...10),
+
+        // N
+        SWCountry(code: "+264", flag: "🇳🇦", name: "Namibia", phoneLength: 9...9),
+        SWCountry(code: "+674", flag: "🇳🇷", name: "Nauru", phoneLength: 7...7),
+        SWCountry(code: "+977", flag: "🇳🇵", name: "Nepal", phoneLength: 10...10),
+        SWCountry(code: "+31", flag: "🇳🇱", name: "Netherlands", phoneLength: 9...9),
+        SWCountry(code: "+687", flag: "🇳🇨", name: "New Caledonia", phoneLength: 6...6),
+        SWCountry(code: "+64", flag: "🇳🇿", name: "New Zealand", phoneLength: 9...10),
+        SWCountry(code: "+505", flag: "🇳🇮", name: "Nicaragua", phoneLength: 8...8),
+        SWCountry(code: "+227", flag: "🇳🇪", name: "Niger", phoneLength: 8...8),
+        SWCountry(code: "+234", flag: "🇳🇬", name: "Nigeria", phoneLength: 10...10),
+        SWCountry(code: "+850", flag: "🇰🇵", name: "North Korea", phoneLength: 10...10),
+        SWCountry(code: "+47", flag: "🇳🇴", name: "Norway", phoneLength: 8...8),
+
+        // O
+        SWCountry(code: "+968", flag: "🇴🇲", name: "Oman", phoneLength: 8...8),
+
+        // P
+        SWCountry(code: "+92", flag: "🇵🇰", name: "Pakistan", phoneLength: 10...10),
+        SWCountry(code: "+680", flag: "🇵🇼", name: "Palau", phoneLength: 7...7),
+        SWCountry(code: "+507", flag: "🇵🇦", name: "Panama", phoneLength: 8...8),
+        SWCountry(code: "+675", flag: "🇵🇬", name: "Papua New Guinea", phoneLength: 8...8),
+        SWCountry(code: "+595", flag: "🇵🇾", name: "Paraguay", phoneLength: 9...9),
+        SWCountry(code: "+51", flag: "🇵🇪", name: "Peru", phoneLength: 9...9),
+        SWCountry(code: "+63", flag: "🇵🇭", name: "Philippines", phoneLength: 10...10),
+        SWCountry(code: "+48", flag: "🇵🇱", name: "Poland", phoneLength: 9...9),
+        SWCountry(code: "+351", flag: "🇵🇹", name: "Portugal", phoneLength: 9...9),
+        SWCountry(code: "+1", flag: "🇵🇷", name: "Puerto Rico", phoneLength: 10...10),
+
+        // Q
+        SWCountry(code: "+974", flag: "🇶🇦", name: "Qatar", phoneLength: 8...8),
+
+        // R
+        SWCountry(code: "+262", flag: "🇷🇪", name: "Reunion", phoneLength: 9...9),
+        SWCountry(code: "+40", flag: "🇷🇴", name: "Romania", phoneLength: 9...9),
+        SWCountry(code: "+7", flag: "🇷🇺", name: "Russia", phoneLength: 10...10),
+        SWCountry(code: "+250", flag: "🇷🇼", name: "Rwanda", phoneLength: 9...9),
+
+        // S
+        SWCountry(code: "+1", flag: "🇰🇳", name: "Saint Kitts and Nevis", phoneLength: 10...10),
+        SWCountry(code: "+1", flag: "🇱🇨", name: "Saint Lucia", phoneLength: 10...10),
+        SWCountry(code: "+1", flag: "🇻🇨", name: "Saint Vincent and the Grenadines", phoneLength: 10...10),
+        SWCountry(code: "+685", flag: "🇼🇸", name: "Samoa", phoneLength: 7...7),
+        SWCountry(code: "+378", flag: "🇸🇲", name: "San Marino", phoneLength: 8...10),
+        SWCountry(code: "+239", flag: "🇸🇹", name: "São Tomé and Príncipe", phoneLength: 7...7),
+        SWCountry(code: "+966", flag: "🇸🇦", name: "Saudi Arabia", phoneLength: 9...9),
+        SWCountry(code: "+221", flag: "🇸🇳", name: "Senegal", phoneLength: 9...9),
+        SWCountry(code: "+381", flag: "🇷🇸", name: "Serbia", phoneLength: 9...9),
+        SWCountry(code: "+248", flag: "🇸🇨", name: "Seychelles", phoneLength: 7...7),
+        SWCountry(code: "+232", flag: "🇸🇱", name: "Sierra Leone", phoneLength: 8...8),
+        SWCountry(code: "+65", flag: "🇸🇬", name: "Singapore", phoneLength: 8...8),
+        SWCountry(code: "+421", flag: "🇸🇰", name: "Slovakia", phoneLength: 9...9),
+        SWCountry(code: "+386", flag: "🇸🇮", name: "Slovenia", phoneLength: 8...8),
+        SWCountry(code: "+677", flag: "🇸🇧", name: "Solomon Islands", phoneLength: 7...7),
+        SWCountry(code: "+252", flag: "🇸🇴", name: "Somalia", phoneLength: 8...9),
+        SWCountry(code: "+27", flag: "🇿🇦", name: "South Africa", phoneLength: 9...9),
+        SWCountry(code: "+82", flag: "🇰🇷", name: "South Korea", phoneLength: 10...11),
+        SWCountry(code: "+211", flag: "🇸🇸", name: "South Sudan", phoneLength: 9...9),
+        SWCountry(code: "+34", flag: "🇪🇸", name: "Spain", phoneLength: 9...9),
+        SWCountry(code: "+94", flag: "🇱🇰", name: "Sri Lanka", phoneLength: 9...9),
+        SWCountry(code: "+249", flag: "🇸🇩", name: "Sudan", phoneLength: 9...9),
+        SWCountry(code: "+597", flag: "🇸🇷", name: "Suriname", phoneLength: 7...7),
+        SWCountry(code: "+268", flag: "🇸🇿", name: "Swaziland", phoneLength: 8...8),
+        SWCountry(code: "+46", flag: "🇸🇪", name: "Sweden", phoneLength: 9...9),
+        SWCountry(code: "+41", flag: "🇨🇭", name: "Switzerland", phoneLength: 9...9),
+        SWCountry(code: "+963", flag: "🇸🇾", name: "Syria", phoneLength: 9...9),
+
+        // T
+        SWCountry(code: "+886", flag: "🇹🇼", name: "Taiwan", phoneLength: 9...9),
+        SWCountry(code: "+992", flag: "🇹🇯", name: "Tajikistan", phoneLength: 9...9),
+        SWCountry(code: "+255", flag: "🇹🇿", name: "Tanzania", phoneLength: 9...9),
+        SWCountry(code: "+66", flag: "🇹🇭", name: "Thailand", phoneLength: 9...9),
+        SWCountry(code: "+228", flag: "🇹🇬", name: "Togo", phoneLength: 8...8),
+        SWCountry(code: "+676", flag: "🇹🇴", name: "Tonga", phoneLength: 7...7),
+        SWCountry(code: "+1", flag: "🇹🇹", name: "Trinidad and Tobago", phoneLength: 10...10),
+        SWCountry(code: "+216", flag: "🇹🇳", name: "Tunisia", phoneLength: 8...8),
+        SWCountry(code: "+90", flag: "🇹🇷", name: "Turkey", phoneLength: 10...10),
+        SWCountry(code: "+993", flag: "🇹🇲", name: "Turkmenistan", phoneLength: 8...8),
+        SWCountry(code: "+1", flag: "🇹🇨", name: "Turks and Caicos Islands", phoneLength: 10...10),
+        SWCountry(code: "+688", flag: "🇹🇻", name: "Tuvalu", phoneLength: 6...6),
+
+        // U
+        SWCountry(code: "+256", flag: "🇺🇬", name: "Uganda", phoneLength: 9...9),
+        SWCountry(code: "+380", flag: "🇺🇦", name: "Ukraine", phoneLength: 9...9),
+        SWCountry(code: "+971", flag: "🇦🇪", name: "United Arab Emirates", phoneLength: 9...9),
+        SWCountry(code: "+44", flag: "🇬🇧", name: "United Kingdom", phoneLength: 10...10),
+        SWCountry(code: "+1", flag: "🇺🇸", name: "United States", phoneLength: 10...10),
+        SWCountry(code: "+598", flag: "🇺🇾", name: "Uruguay", phoneLength: 8...9),
+        SWCountry(code: "+998", flag: "🇺🇿", name: "Uzbekistan", phoneLength: 9...9),
+
+        // V
+        SWCountry(code: "+678", flag: "🇻🇺", name: "Vanuatu", phoneLength: 7...7),
+        SWCountry(code: "+379", flag: "🇻🇦", name: "Vatican City", phoneLength: 10...10),
+        SWCountry(code: "+58", flag: "🇻🇪", name: "Venezuela", phoneLength: 10...10),
+        SWCountry(code: "+84", flag: "🇻🇳", name: "Vietnam", phoneLength: 9...10),
+        SWCountry(code: "+1", flag: "🇻🇮", name: "Virgin Islands (US)", phoneLength: 10...10),
+
+        // Y
+        SWCountry(code: "+967", flag: "🇾🇪", name: "Yemen", phoneLength: 9...9),
+
+        // Z
+        SWCountry(code: "+260", flag: "🇿🇲", name: "Zambia", phoneLength: 9...9),
+        SWCountry(code: "+263", flag: "🇿🇼", name: "Zimbabwe", phoneLength: 9...9)
     ]
 }
 ```
 
-#### 5. App.swift — Amplify initialization and auth-driven navigation
+#### 6. SWDebugLog.swift — Debug-only logging (from SWUtil)
+
+Skip this file if your project already has ShipSwift's `SWUtil`.
+
+```swift
+//
+//  SWDebugLog.swift
+//  ShipSwift
+//
+//  Debug logging utility functions that only print in DEBUG mode, with zero overhead
+//  in Release builds (#if DEBUG + @inline(__always)). Provides two overloads:
+//  simple print and print with file name/line number.
+//
+//  Usage:
+//    // Overload 1 — multi-argument print (similar to print, supports custom separator and terminator):
+//    swDebugLog("UserID:", userId, "Status:", status)
+//    swDebugLog("A", "B", "C", separator: "-")
+//    // Output: A-B-C
+//
+//    // Overload 2 — print with file name and line number (automatically captures call site):
+//    swDebugLog("Network request failed")
+//    // Output: [ViewModel.swift:42] Network request failed
+//
+//    // In Release mode, all swDebugLog calls are completely removed by the compiler with no performance impact.
+//
+//  Created by Wei Zhong on 3/1/26.
+//
+
+import Foundation
+
+// MARK: - Debug Logging
+
+/// Prints log messages in Debug mode, completely removed in Release (zero overhead)
+@inline(__always)
+nonisolated func swDebugLog(_ items: Any..., separator: String = " ", terminator: String = "\n") {
+    #if DEBUG
+    let output = items.map { "\($0)" }.joined(separator: separator)
+    print(output, terminator: terminator)
+    #endif
+}
+
+/// Prints log messages with file and line info in Debug mode
+@inline(__always)
+nonisolated func swDebugLog(_ message: @autoclosure () -> String, file: String = #file, line: Int = #line) {
+    #if DEBUG
+    let filename = (file as NSString).lastPathComponent
+    print("[\(filename):\(line)] \(message())")
+    #endif
+}
+```
+
+#### 7. SWButtonStyle (from SWUtil)
+
+The iOS view's buttons use ShipSwift's `.swPrimary` / `.swSecondary` styles, defined in `SWUtil/SWViewExtension.swift` and reproduced here. Skip this block if your project already has ShipSwift's `SWUtil`. `.accent` (also used by `SWAuthView+iOS.swift`) is the color Xcode generates from the `AccentColor` color set in your asset catalog (the default app template includes one).
+
+```swift
+import SwiftUI
+
+// MARK: - Button Style
+
+struct SWButtonStyle: ButtonStyle {
+    enum Variant {
+        case primary
+        case secondary
+    }
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    let variant: Variant
+    var showBorder: Bool = false
+    var cornerRadius: CGFloat = 16
+
+    private var backgroundColor: Color {
+        switch variant {
+        case .primary: .accent
+        case .secondary: .accent.opacity(0.1)
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch variant {
+        case .primary: .white
+        case .secondary: .primary.opacity(0.8)
+        }
+    }
+
+    private var borderColor: Color {
+        switch variant {
+        case .primary: .primary
+        case .secondary: .secondary.opacity(0.8)
+        }
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(backgroundColor)
+            )
+            .foregroundStyle(foregroundColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(
+                        showBorder ? borderColor : .clear,
+                        lineWidth: 1.5
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.5)
+    }
+}
+
+extension ButtonStyle where Self == SWButtonStyle {
+    /// Primary button style (confirm / save, etc.)
+    static var swPrimary: SWButtonStyle { .init(variant: .primary) }
+    /// Secondary button style (cancel / close, etc.)
+    static var swSecondary: SWButtonStyle { .init(variant: .secondary) }
+
+    static func swPrimary(showBorder: Bool = true, cornerRadius: CGFloat = 12) -> SWButtonStyle {
+        .init(variant: .primary, showBorder: showBorder, cornerRadius: cornerRadius)
+    }
+
+    static func swSecondary(showBorder: Bool = true, cornerRadius: CGFloat = 12) -> SWButtonStyle {
+        .init(variant: .secondary, showBorder: showBorder, cornerRadius: cornerRadius)
+    }
+}
+```
+
+#### 8. App.swift — Amplify initialization and auth-driven navigation
 
 ```swift
 import SwiftUI
@@ -1656,6 +3060,8 @@ struct MyApp: App {
                     ProgressView()
                 case .signedOut:
                     SWAuthView()
+                case .guest:
+                    MainView()   // entered via userManager.skipSignIn()
                 case .onboarding:
                     OnboardingView()
                 case .ready:
@@ -1663,6 +3069,7 @@ struct MyApp: App {
                 }
             }
             .environment(userManager)
+            .swAlert()   // from the component-alert skill: shows the auth views' error messages
             .onChange(of: userManager.sessionState) { oldState, newState in
                 // Clear caches when signing out
                 if oldState.isSignedIn, !newState.isSignedIn {
@@ -1686,7 +3093,7 @@ struct MyApp: App {
 }
 ```
 
-#### 6. amplifyconfiguration.json — Amplify SDK configuration
+#### 9. amplifyconfiguration.json — Amplify SDK configuration
 
 Place this file in your Xcode project (add to target):
 
@@ -2010,9 +3417,9 @@ app.get("/api/profile", (c) => {
 
 ### Phase 3: AWS CDK Deployment (two-step for social login)
 
-- [ ] Step 1: Set `enableSocialLogin: false` in cdk.json, deploy to create Secrets
+- [ ] Step 1: Deploy without the Apple / Google identity providers (leave out `appleProvider`, `googleProvider`, their `custom(...)` entries in `supportedIdentityProviders` and the `addDependency` lines — e.g. behind a context flag of your own) to create the Secrets Manager secret
 - [ ] Step 2: Upload real secrets to AWS Secrets Manager (Apple private key, Google client secret)
-- [ ] Step 3: Set `enableSocialLogin: true`, redeploy
+- [ ] Step 3: Add the providers back and redeploy
 - [ ] Record from CDK outputs: User Pool ID, Client ID, Cognito Domain
 
 ### Phase 4: Apple Developer (post-deploy)
@@ -2028,7 +3435,8 @@ app.get("/api/profile", (c) => {
 - [ ] Add URL Scheme in Info > URL Types (e.g., `myapp`)
 - [ ] Add `amplifyconfiguration.json` to the project (fill in values from Phase 3)
 - [ ] Initialize Amplify in App.swift `init()`
-- [ ] Add SWUserManager, SWAuthView, SWAgreementChecker, SWCountryData files
+- [ ] Add `SWUserManager.swift`, `SWAuthView+iOS.swift` (and `SWAuthView+macOS.swift` for a Mac target), `SWAgreementChecker.swift`, `SWCountryData.swift`, plus `SWDebugLog.swift` and `SWButtonStyle` unless you already have ShipSwift's `SWUtil`
+- [ ] Install the **component-alert** skill and attach `.swAlert()` to the root view
 - [ ] Wire up session state to control navigation
 
 ### Phase 6: Testing
@@ -2166,17 +3574,17 @@ guard let idToken = userManager.sessionState.tokens?.idToken else { return }
 guard let idToken = await userManager.getFreshIdToken() else { return }
 ```
 
-The Amplify SDK automatically uses the Refresh Token to obtain new ID/Access tokens when they expire. Only after 30 days of inactivity (Refresh Token expires) will the user need to re-sign-in.
+The Amplify SDK automatically uses the Refresh Token to obtain new ID/Access tokens when they expire. Only after 30 days of inactivity (Refresh Token expires) will the user need to re-sign-in. `getFreshIdToken()` also returns `nil` while the device is offline with an expired ID Token; in that case the session is kept, so treat `nil` as "cannot call the API right now", not as "signed out" (observe `sessionState` for that).
 
 ### 6. ID Token vs Access Token confusion
 
 The Hono `authMiddleware` extracts user info from the JWT `sub` claim. Always send the **ID Token** in `Authorization: Bearer` headers for your business API. If you later add API Gateway with JWT Authorizer, note that it validates the `aud` claim: ID Token has `aud` = Client ID (passes), while Access Token has `aud` = "access" (fails with 401).
 
-### 7. iOS network permission dialog blocks OAuth sign-in
+### 7. Cellular data ("Wireless Data") prompt blocks OAuth sign-in on China-region iPhones
 
-**Symptom**: First-time Apple/Google sign-in fails silently because the network permission prompt appears during the OAuth redirect.
+**Symptom**: On iPhones sold in mainland China, the first Apple/Google sign-in fails silently because the system's "Allow <App> to use wireless data?" prompt appears in the middle of the OAuth redirect. (This is not the local-network permission; an HTTPS request never triggers that one.)
 
-**Fix**: Fire a dummy network request when `SWAuthView` appears (`.task` modifier). This triggers the permission dialog before the user taps any sign-in button. Already included in the `SWAuthView` code above.
+**Fix**: Make one lightweight request (a `HEAD` on a throwaway ephemeral `URLSession`) when `SWAuthView` appears (`.task` modifier), so the prompt shows before the user taps any sign-in button. Already included in `SWAuthView+iOS.swift` above. The prompt exists only on iPhone and iPad, so the macOS view does not make this request.
 
 ### 8. `fullScreenCover` renders incorrectly after auth sheet dismissal
 
@@ -2214,3 +3622,9 @@ var flag: Bool = UserDefaults.standard.bool(forKey: "flag") {
 **Symptom**: User selects Google account but nothing happens, or `invalid_client` error.
 
 **Fix**: In Google Cloud Console, create an OAuth 2.0 client of type **Web application** (not iOS). Cognito uses the web OAuth flow even for mobile apps. Add the Cognito `/oauth2/idpresponse` URL as an authorized redirect URI.
+
+### 12. Phone sign-in needs a custom-auth backend this skill does not include
+
+**Symptom**: "Send Verification Code" fails (user not found, or the auth flow is rejected by the App Client).
+
+**Reality**: `sendPhoneVerificationCode` starts Cognito's passwordless custom auth flow (`authFlowType: .customWithoutSRP`), which only works when the User Pool has the three custom-challenge Lambda triggers (Define / Create / Verify Auth Challenge, the Create trigger sending the SMS code), the App Client allows it (`authFlows: { custom: true }`), and the phone number already exists as a user (or a sign-up step creates it). The CDK above deploys none of this, so either add those triggers or hide the Phone tab (see "Remove phone login").

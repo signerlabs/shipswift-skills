@@ -29,8 +29,8 @@ SWAnimation/SWMetal/
 //  SWSmokeRing.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `colorEffect`. A radial multi-colored gradient
-//  distorted by layered noise into a soft smoky ring.
+//  A radial multi-colored gradient distorted by layered noise into a soft
+//  smoky ring, rendered via a SwiftUI Metal `colorEffect`.
 //
 //  Algorithm: ring shape is built in polar coordinates from `length` +
 //  `atan2`; two phase-shifted FBM noise layers (1...8 octaves of
@@ -261,7 +261,7 @@ private struct SWSmokeRingControlled: View {
                 scale: $scale,
                 speed: $speed
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -316,19 +316,19 @@ private struct SWSmokeRingControlsSheet: View {
                 }
 
                 Section("Ring") {
-                    SliderRow(label: "Radius",     value: $radius,     range: 0...1,     step: 0.01)
-                    SliderRow(label: "Thickness",  value: $thickness,  range: 0.01...1,  step: 0.01)
-                    SliderRow(label: "Inner Fill", value: $innerShape, range: 0...4,     step: 0.05)
-                    SliderRow(label: "Scale",      value: $scale,      range: 0.05...4,  step: 0.05)
+                    SWSmokeRingSliderRow(label: "Radius",     value: $radius,     range: 0...1,     step: 0.01)
+                    SWSmokeRingSliderRow(label: "Thickness",  value: $thickness,  range: 0.01...1,  step: 0.01)
+                    SWSmokeRingSliderRow(label: "Inner Fill", value: $innerShape, range: 0...4,     step: 0.05)
+                    SWSmokeRingSliderRow(label: "Scale",      value: $scale,      range: 0.05...4,  step: 0.05)
                 }
 
                 Section("Noise") {
-                    SliderRow(label: "Noise Scale", value: $noiseScale,      range: 0.01...5, step: 0.01)
-                    SliderRow(label: "Iterations",  value: $noiseIterations, range: 1...8,    step: 1)
+                    SWSmokeRingSliderRow(label: "Noise Scale", value: $noiseScale,      range: 0.01...5, step: 0.01)
+                    SWSmokeRingSliderRow(label: "Iterations",  value: $noiseIterations, range: 1...8,    step: 1)
                 }
 
                 Section("Motion") {
-                    SliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                    SWSmokeRingSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
                 }
             }
             .navigationTitle("Smoke Ring")
@@ -344,7 +344,7 @@ private struct SWSmokeRingControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWSmokeRingSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -397,7 +397,7 @@ private struct SliderRow: View {
 //  and inner-fill are user controls; the distorted shape mask drives
 //  the alpha and a 1...10 color gradient.
 //
-//  A procedural `hash21` keeps the shader fully self-contained
+//  Uses a procedural `hash21` so the shader is fully self-contained
 //  (no sampler / no resource binding).
 //
 
@@ -414,8 +414,8 @@ namespace SWSmokeRingImpl {
         return fract(p.x * p.y);
     }
 
-    // `randomR` quantizes the input by /100 and wraps to keep
-    // the noise tileable.
+    // `randomR` quantizes the input by /100 and wraps to keep the noise
+    // tileable.
     inline float randomR(float2 p) {
         float2 uv = floor(p) / 100.0 + 0.5;
         return hash21(fract(uv));

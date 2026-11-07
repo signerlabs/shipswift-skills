@@ -26,6 +26,7 @@ struct SWStepper: View {
                 Image(systemName: "chevron.backward")
                     .imageScale(.large)
             }
+            .accessibilityLabel("Decrease")
             .disabled(quantity <= 0)
             .buttonStyle(.plain)
 
@@ -39,6 +40,7 @@ struct SWStepper: View {
                 Image(systemName: "chevron.forward")
                     .imageScale(.large)
             }
+            .accessibilityLabel("Increase")
             .buttonStyle(.plain)
         }
         .animation(.default, value: quantity)

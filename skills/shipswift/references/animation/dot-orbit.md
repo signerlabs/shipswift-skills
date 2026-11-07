@@ -29,8 +29,8 @@ SWAnimation/SWMetal/
 //  SWDotOrbit.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `colorEffect`. Animated multi-color dots, each
-//  orbiting around its own Voronoi-cell center, mapped onto a 1–10
+//  Animated multi-color dots rendered via a SwiftUI Metal `colorEffect`,
+//  each orbiting around its own Voronoi-cell center, mapped onto a 1–10
 //  color step-discretized gradient.
 //
 //  Requires iOS 18+ / macOS 15+ (SwiftUI `ShaderLibrary`,
@@ -233,7 +233,7 @@ private struct SWDotOrbitControlled: View {
                 spreading: $spreading,
                 stepsPerColor: $stepsPerColor
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -271,15 +271,15 @@ private struct SWDotOrbitControlsSheet: View {
                 }
 
                 Section("Dots") {
-                    SliderRow(label: "Density",    value: $scale,         range: 0.5...10, step: 0.1)
-                    SliderRow(label: "Size",       value: $size,          range: 0...1,    step: 0.01)
-                    SliderRow(label: "Size Range", value: $sizeRange,     range: 0...1,    step: 0.01)
-                    SliderRow(label: "Spreading",  value: $spreading,     range: 0...1,    step: 0.01)
-                    SliderRow(label: "Steps",      value: $stepsPerColor, range: 1...4,    step: 1)
+                    SWDotOrbitSliderRow(label: "Density",    value: $scale,         range: 0.5...10, step: 0.1)
+                    SWDotOrbitSliderRow(label: "Size",       value: $size,          range: 0...1,    step: 0.01)
+                    SWDotOrbitSliderRow(label: "Size Range", value: $sizeRange,     range: 0...1,    step: 0.01)
+                    SWDotOrbitSliderRow(label: "Spreading",  value: $spreading,     range: 0...1,    step: 0.01)
+                    SWDotOrbitSliderRow(label: "Steps",      value: $stepsPerColor, range: 1...4,    step: 1)
                 }
 
                 Section("Motion") {
-                    SliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                    SWDotOrbitSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
                 }
             }
             .navigationTitle("Dot Orbit")
@@ -295,7 +295,7 @@ private struct SWDotOrbitControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWDotOrbitSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -345,8 +345,8 @@ private struct SliderRow: View {
 //  SWDotOrbit.metal
 //  ShipSwift
 //
-//  Stitchable SwiftUI colorEffect. Animated multi-color dots, each
-//  orbiting around its own Voronoi-cell center, mapped onto a 1–10
+//  Stitchable SwiftUI colorEffect that renders animated multi-color dots,
+//  each orbiting around its own Voronoi-cell center, mapped onto a 1–10
 //  color step-discretized gradient.
 //
 //  The per-cell randomizers (`randomR` / `randomGB`) use pure hash
@@ -363,7 +363,7 @@ private struct SliderRow: View {
 using namespace metal;
 
 // =============================================================================
-// MARK: - hash helpers (texture-free randomizers)
+// MARK: - hash helpers (avoid binding an auxiliary noise texture)
 // =============================================================================
 
 // Single-channel hash for the orbit-rotation seed (`randomR`).
@@ -386,8 +386,8 @@ static float2 swDO_rotate(float2 uv, float th) {
     return float2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
 }
 
-// `voronoiShape` — 3×3 neighbour scan to find the closest
-// orbiting cell-center. Returns `(minDist, randomizer.x, randomizer.y)`.
+// voronoiShape — 3×3 neighbour scan to find the closest orbiting
+// cell-center. Returns `(minDist, randomizer.x, randomizer.y)`.
 static float3 swDO_voronoi(float2 uv, float time, float spreading) {
     const float TWO_PI = 6.28318530718;
     float2 iuv = floor(uv);
@@ -456,8 +456,7 @@ static float3 swDO_voronoi(float2 uv, float time, float spreading) {
     float steps = max(1.0, stepsPerColor);
 
     // Two-step mixer — the second assignment is the one that actually
-    // drives the gradient; the first is kept intentionally so the form
-    // stays explicit.
+    // drives the gradient (the first is unused; kept for clarity).
     float mixerA = shape * (countF - 1.0);
     (void)mixerA;
     float mixer = (shape - 0.5 / countF) * countF;

@@ -29,11 +29,10 @@ SWAnimation/SWMetal/
 //  SWHalftone.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `layerEffect` halftone family.
-//  Wraps any view in a halftone print filter — the child content is
-//  treated as a source image, quantized into a rotated cell grid, and
-//  rendered as dots whose size tracks the local luminance (or CMYK
-//  channel coverage in `.cmyk` mode).
+//  A halftone print filter rendered via a SwiftUI Metal `layerEffect`.
+//  Wraps any view — the child content is treated as a source image,
+//  quantized into a rotated cell grid, and rendered as dots whose size
+//  tracks the local luminance (or CMYK channel coverage in `.cmyk` mode).
 //
 //  Style menu:
 //    • `.dotsClassic` — crisp newspaper circles (square or hex grid)
@@ -381,7 +380,7 @@ private struct SWHalftoneControlled<Content: View>: View {
                 colorY: $colorY,
                 colorK: $colorK
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -449,18 +448,18 @@ private struct SWHalftoneControlsSheet: View {
                 }
 
                 Section("Grid") {
-                    SliderRow(label: "Size",     value: $size,     range: 0...1, step: 0.01)
+                    SWHalftoneSliderRow(label: "Size",     value: $size,     range: 0...1, step: 0.01)
                     if isDots {
-                        SliderRow(label: "Radius", value: $radius, range: 0...2, step: 0.01)
+                        SWHalftoneSliderRow(label: "Radius", value: $radius, range: 0...2, step: 0.01)
                     }
-                    SliderRow(label: "Contrast", value: $contrast, range: 0...1, step: 0.01)
+                    SWHalftoneSliderRow(label: "Contrast", value: $contrast, range: 0...1, step: 0.01)
                 }
 
                 if isDots {
                     Section("Grain") {
-                        SliderRow(label: "Mixer",   value: $grainMixer,   range: 0...1, step: 0.01)
-                        SliderRow(label: "Overlay", value: $grainOverlay, range: 0...1, step: 0.01)
-                        SliderRow(label: "Size",    value: $grainSize,    range: 0...1, step: 0.01)
+                        SWHalftoneSliderRow(label: "Mixer",   value: $grainMixer,   range: 0...1, step: 0.01)
+                        SWHalftoneSliderRow(label: "Overlay", value: $grainOverlay, range: 0...1, step: 0.01)
+                        SWHalftoneSliderRow(label: "Size",    value: $grainSize,    range: 0...1, step: 0.01)
                     }
                 }
             }
@@ -477,7 +476,7 @@ private struct SWHalftoneControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWHalftoneSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -496,26 +495,6 @@ private struct SliderRow: View {
         }
     }
 }
-
-// MARK: - Preview
-
-#Preview("Gooey on photo") {
-    NavigationStack {
-        SWHalftone(showsControls: true) {
-            Image(.facePicture)
-                .resizable()
-                .scaledToFill()
-        }
-    }
-}
-
-#Preview("CMYK plates") {
-    SWHalftone(style: .cmyk) {
-        Image(.facePicture)
-            .resizable()
-            .scaledToFill()
-    }
-}
 ```
 
 ### SWHalftone.metal
@@ -525,14 +504,15 @@ private struct SliderRow: View {
 //  SWHalftone.metal
 //  ShipSwift
 //
-//  Stitchable SwiftUI layerEffect halftone family. Two entry points:
+//  Stitchable SwiftUI layerEffect rendering a halftone print family.
+//  Two entry points:
 //
 //    • `swHalftoneDots` — 4 dot styles
 //      (classic / gooey / holes / soft) × 2 grids (square / hex), with
 //      optional originalColors mode and procedural grain.
 //
-//    • `swHalftoneCmyk` — simplified ink-only variant. 4 channel plates
-//      (C / M / Y / K) at the classic 15° /
+//    • `swHalftoneCmyk` — simplified ink-only CMYK
+//      variant. 4 channel plates (C / M / Y / K) at the classic 15° /
 //      75° / 0° / 45° rotations, multiplicatively layered on a paper
 //      background to produce a four-color printing look.
 //
@@ -626,8 +606,8 @@ static float swHt_getClassic(float2 uv, float lum, float baseR) {
     return 1.0 - smoothstep(r - aa, r + aa, d);
 }
 
-// Gooey soft falloff blob. Hex grid uses 0.42 base
-// radius vs 0.3 for square.
+// Gooey soft falloff blob. Hex grid uses 0.42 base radius vs 0.3 for
+// square.
 static float swHt_getGooey(float2 uv, float lum, float baseR, bool hex) {
     float d = length(uv - 0.5);
     float sizeR = hex ? (0.42 * baseR) : (0.3 * baseR);
@@ -637,8 +617,8 @@ static float swHt_getGooey(float2 uv, float lum, float baseR, bool hex) {
     return d;
 }
 
-// Circle with optional hole. Big `lum` produces
-// a ring (cell minus inner circle).
+// Circle with optional hole. Big `lum` produces a ring (cell minus inner
+// circle).
 static float swHt_getHoles(float2 uv, float lum, float baseR) {
     float insideX = step(0.0, uv.x) * (1.0 - step(1.0, uv.x));
     float insideY = step(0.0, uv.y) * (1.0 - step(1.0, uv.y));
@@ -787,7 +767,7 @@ static float swHt_stepMultiplierFor(int typeI) {
             float oy = -0.5 + (float(iy) + 0.5) * stepSize;
             float2 offset = float2(ox, oy);
 
-            // Hex grid: alternate row/col parity differently per type.
+            // Hex grid alternates row/col parity differently per type.
             if (hexGrid) {
                 float rowIndex = floor((oy + 0.5) / stepSize);
                 float colIndex = floor((ox + 0.5) / stepSize);
@@ -823,7 +803,7 @@ static float swHt_stepMultiplierFor(int typeI) {
     totalColor   /= max(totalShape, eps);
     totalOpacity /= max(totalShape, eps);
 
-    // Threshold per dot type.
+    // Per-type threshold.
     float finalShape;
     if (typeI == 0)      finalShape = min(1.0, totalShape);
     else if (typeI == 1) { float aa = fwidth(totalShape);
@@ -872,13 +852,13 @@ static float swHt_stepMultiplierFor(int typeI) {
 // MARK: - swHalftoneCmyk (4-channel CMYK ink-only simplified port)
 // =============================================================================
 //
-// Simplifications in this variant:
-//   • Only the `ink` dot style — `dots` (separate) and `sharp`
-//     (per-pixel) styles need extra branching; left for a follow-up.
+// Simplified CMYK variant:
+//   • Only the `ink` dot style — `dots` (separate) and `sharp` (per-pixel)
+//     styles need extra branching and are left for a follow-up.
 //   • No flood / gain / softness sliders — uses fixed defaults.
 //   • No grain mixer / overlay.
-//   • Uses the canonical CMYK plate rotation angles, paper feed shifts,
-//     and a 3×3 neighbour scan.
+//   • CMYK plate rotation angles, paper feed shifts, and a 3×3
+//     neighbour scan drive the four-color reconstruction.
 
 // Extract one CMYK channel from a contrast-shaped RGB triple.
 static float swHt_cyan(float3 c)    { float m = max(max(c.r, c.g), c.b); return m > 1e-5 ? (m - c.r) / m : 0.0; }
@@ -886,7 +866,7 @@ static float swHt_magenta(float3 c) { float m = max(max(c.r, c.g), c.b); return 
 static float swHt_yellow(float3 c)  { float m = max(max(c.r, c.g), c.b); return m > 1e-5 ? (m - c.b) / m : 0.0; }
 static float swHt_black(float3 c)   { return 1.0 - max(max(c.r, c.g), c.b); }
 
-// One CMYK dot in ink mode — joined-coverage color mask.
+// One CMYK dot in ink mode — joined coverage mask.
 static float swHt_cmykDot(float2 uvLocal, float2 cellCenter, float coverage, float alpha) {
     float radius = coverage * 1.1;
     radius += 0.15;
@@ -979,7 +959,7 @@ static float2 swHt_gridToImageUV(float2 cellCenter, float c, float s, float shif
     }
 
     // Ink threshold — join overlapping dots into a continuous ink
-    // body via smoothstep, using a fixed softness.
+    // body via smoothstep with a fixed softness.
     const float th = 0.5;
     const float soft = 0.2;
     outMask = float4(

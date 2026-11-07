@@ -330,6 +330,12 @@ final class SWUserManager {
                 }
                 return // Success, no more retries
 
+            } catch SWServiceError.tokenMissing {
+                // Session expired / revoked (refresh token dead) — retrying cannot fix it.
+                // Fall back to a fresh anonymous identity instead of a permanent error screen.
+                await signOut()
+                return
+
             } catch {
                 if attempt == maxRetries {
                     sessionState = .error(message: "Initialization failed")
@@ -444,7 +450,8 @@ final class SWUserManager {
     ///
     /// Returns nil when:
     /// - User is not signed in (anonymous users should not call this)
-    /// - Refresh Token expired (30 days of inactivity), requires re-sign-in
+    /// - Refresh Token expired (30 days of inactivity): the user is signed out back to anonymous
+    /// - The device is offline and the ID Token has expired (the session is kept)
     func getFreshIdToken() async -> String? {
         guard sessionState.isSignedIn else { return nil }
 
@@ -460,7 +467,12 @@ final class SWUserManager {
             }
 
             return tokens.idToken
+        } catch SWServiceError.tokenMissing {
+            // Refresh token expired: drop the dead session instead of a "fake signed-in" state
+            await signOut()
+            return nil
         } catch {
+            // Offline / transient: keep the session, the next call retries
             return nil
         }
     }
@@ -605,8 +617,8 @@ actor SWAuthService {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken
             )
-        case .failure:
-            throw SWServiceError.tokenMissing
+        case .failure(let error):
+            throw Self.tokenError(from: error)
         }
     }
 
@@ -625,9 +637,18 @@ actor SWAuthService {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken
             )
-        case .failure:
-            throw SWServiceError.tokenMissing
+        case .failure(let error):
+            throw Self.tokenError(from: error)
         }
+    }
+
+    /// Offline is transient (`.networkError`, keep the session); any other failure means the session is gone (`.tokenMissing`)
+    private static func tokenError(from error: AuthError) -> SWServiceError {
+        if case .service(_, _, let underlyingError) = error,
+           case .network? = underlyingError as? AWSCognitoAuthError {
+            return .networkError
+        }
+        return .tokenMissing
     }
 
     // MARK: - User Attributes
@@ -687,6 +708,8 @@ actor SWAuthService {
 ///
 /// - Anonymous users: sends `X-Identity-Id` header (Level 1 access)
 /// - Authenticated users: sends `Authorization: Bearer` + `X-Identity-Id` (Level 2 access)
+/// MainActor-isolated because it reads `SWUserManager.sessionState`.
+@MainActor
 struct SWAPIRequestBuilder {
 
     private let baseURL: String
@@ -742,13 +765,6 @@ struct SWAPIRequestBuilder {
     }
 }
 
-// MARK: - Debug Log
-
-nonisolated func swDebugLog(_ items: Any...) {
-    #if DEBUG
-    print(items.map { String(describing: $0) }.joined(separator: " "))
-    #endif
-}
 ```
 
 #### 2. App.swift — Amplify initialization and auth-driven navigation

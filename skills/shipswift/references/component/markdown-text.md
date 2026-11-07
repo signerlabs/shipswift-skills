@@ -133,6 +133,7 @@ public struct SWMarkdownText: View {
     // MARK: - Inline Markdown (bold, italic, inline code)
 
     private func inlineMarkdownText(_ text: String) -> Text {
+        // Parse inline Markdown using AttributedString with whitespace preservation
         if let attributed = try? AttributedString(
             markdown: text,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
@@ -211,6 +212,7 @@ public struct SWMarkdownText: View {
             while i < lines.count {
                 let nextLine = lines[i]
                 let nextTrimmed = nextLine.trimmingCharacters(in: .whitespaces)
+                // End paragraph on empty line, heading, list, code fence, or divider
                 if nextTrimmed.isEmpty ||
                     parseHeading(nextTrimmed) != nil ||
                     nextTrimmed.hasPrefix("```") ||
@@ -230,6 +232,7 @@ public struct SWMarkdownText: View {
 
     // MARK: - Parsing Helpers
 
+    /// Parse heading line (# through ####), returning (level, content).
     private func parseHeading(_ line: String) -> (Int, String)? {
         var level = 0
         var idx = line.startIndex
@@ -243,6 +246,7 @@ public struct SWMarkdownText: View {
         return (level, content)
     }
 
+    /// Parse unordered list item: line starting with -, *, or + followed by a space.
     private func parseUnorderedListItem(_ line: String) -> String? {
         guard let first = line.first, "-*+".contains(first),
               line.count >= 2,
@@ -251,6 +255,7 @@ public struct SWMarkdownText: View {
         return content.isEmpty ? nil : content
     }
 
+    /// Parse ordered list item: line starting with digits followed by ". ".
     private func parseOrderedListItem(_ line: String) -> String? {
         guard let dotIndex = line.firstIndex(of: ".") else { return nil }
         let prefix = line[line.startIndex..<dotIndex]
@@ -261,6 +266,7 @@ public struct SWMarkdownText: View {
         return content.isEmpty ? nil : content
     }
 
+    /// Check whether the line is a horizontal divider (---, ***, or ___).
     private func isDivider(_ line: String) -> Bool {
         guard line.count >= 3 else { return false }
         return line.allSatisfy({ $0 == "-" }) ||
@@ -300,13 +306,7 @@ SWMarkdownText("# Hello\n\nThis is **bold** and *italic* text.")
 SWMarkdownText(viewModel.streamingResponse)
 
 // Code block with language label
-SWMarkdownText("""
-```swift
-func greet() {
-    print("Hello, world!")
-}
-\```
-""")
+SWMarkdownText("```swift\nfunc greet() {\n    print(\"Hello, world!\")\n}\n```")
 
 // Custom styling for code blocks
 SWMarkdownText(

@@ -209,11 +209,228 @@ private struct SWPlasmaRenderer: View {
     }
 }
 
-// (Optional `SWPlasmaControlled` + `SWPlasmaControlsSheet` provide a gear
-// ToolbarItem and a Form-based live-tuning sheet. The sheet's Style picker
-// resets the five palette stops to the new style's hand-tuned defaults —
-// intentional, so callers can shop styles by name and see the designer's
-// intent. Omit them in production builds.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWPlasmaControlled: View {
+    @State private var style: SWPlasmaStyle
+    @State private var c1: Color
+    @State private var c2: Color
+    @State private var c3: Color
+    @State private var c4: Color
+    @State private var c5: Color
+    @State private var scale: Float
+    @State private var intensity: Float
+    @State private var distortion: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWPlasma) {
+        _style      = State(initialValue: initial.style)
+        _c1         = State(initialValue: initial.c1)
+        _c2         = State(initialValue: initial.c2)
+        _c3         = State(initialValue: initial.c3)
+        _c4         = State(initialValue: initial.c4)
+        _c5         = State(initialValue: initial.c5)
+        _scale      = State(initialValue: initial.scale)
+        _intensity  = State(initialValue: initial.intensity)
+        _distortion = State(initialValue: initial.distortion)
+    }
+
+    /// Builder that produces a fresh `SWPlasma` view with the currently
+    /// tweaked parameters — used by both the full-screen background and
+    /// the button-ring demo so all three plasma instances animate in sync.
+    private func makePlasma() -> SWPlasma {
+        SWPlasma(
+            style: style,
+            c1: c1, c2: c2, c3: c3, c4: c4, c5: c5,
+            scale: scale,
+            intensity: intensity,
+            distortion: distortion
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            // Full-screen plasma — shows the "use as background" case.
+            SWPlasmaRenderer(
+                style: style,
+                c1: c1, c2: c2, c3: c3, c4: c4, c5: c5,
+                scale: scale,
+                intensity: intensity,
+                distortion: distortion
+            )
+            .ignoresSafeArea()
+
+            // Button-ring demo — shows the "use as ring border" case
+            // documented in the original plasma sources. Wrapped in a
+            // dark card so the rings read against the plasma background.
+            VStack {
+                Spacer()
+                VStack(spacing: 14) {
+                    Text("Plasma as button border")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                    HStack(spacing: 22) {
+                        SWPlasmaRingCircleButton(icon: "arrow.up") { makePlasma() }
+                        SWPlasmaRingPillButton(title: "Upgrade to Pro") { makePlasma() }
+                    }
+                }
+                .padding(.vertical, 22)
+                .padding(.horizontal, 28)
+                .background(Color.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .padding(.bottom, 60)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Plasma Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWPlasmaControlsSheet(
+                style: $style,
+                c1: $c1, c2: $c2, c3: $c3, c4: $c4, c5: $c5,
+                scale: $scale,
+                intensity: $intensity,
+                distortion: $distortion
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWPlasmaControlsSheet: View {
+    @Binding var style: SWPlasmaStyle
+    @Binding var c1: Color
+    @Binding var c2: Color
+    @Binding var c3: Color
+    @Binding var c4: Color
+    @Binding var c5: Color
+    @Binding var scale: Float
+    @Binding var intensity: Float
+    @Binding var distortion: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Style") {
+                    Picker("Style", selection: $style) {
+                        ForEach(SWPlasmaStyle.allCases) { s in
+                            Text(s.displayName).tag(s)
+                        }
+                    }
+                }
+
+                Section("Palette") {
+                    ColorPicker("Color 1", selection: $c1, supportsOpacity: false)
+                    ColorPicker("Color 2", selection: $c2, supportsOpacity: false)
+                    ColorPicker("Color 3", selection: $c3, supportsOpacity: false)
+                    ColorPicker("Color 4", selection: $c4, supportsOpacity: false)
+                    ColorPicker("Color 5", selection: $c5, supportsOpacity: false)
+                }
+
+                Section("Field") {
+                    SWPlasmaSliderRow(label: "Scale",      value: $scale,      range: 0.2...3, step: 0.05)
+                    SWPlasmaSliderRow(label: "Intensity",  value: $intensity,  range: 0...2.5, step: 0.05)
+                    SWPlasmaSliderRow(label: "Distortion", value: $distortion, range: 0...3,   step: 0.05)
+                }
+            }
+            .navigationTitle("Plasma")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            // When the style changes, reset the palette to the new style's
+            // hand-tuned defaults so the caller sees the designer's intent.
+            // Any previously customized colors are overwritten — intentional.
+            .onChange(of: style) { _, newStyle in
+                let palette = newStyle.defaultPalette
+                c1 = palette[0]
+                c2 = palette[1]
+                c3 = palette[2]
+                c4 = palette[3]
+                c5 = palette[4]
+            }
+        }
+    }
+}
+
+private struct SWPlasmaSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
+
+// MARK: - Button-Ring Demo Helpers
+
+/// Inset colors / sizes for the button-ring demo.
+private let swPlasmaButtonInk  = Color(red: 0.07, green: 0.07, blue: 0.08)
+private let swPlasmaRingWidth: CGFloat = 2.5
+
+private struct SWPlasmaRingCircleButton<Plasma: View>: View {
+    let icon: String
+    @ViewBuilder let plasma: () -> Plasma
+
+    var body: some View {
+        ZStack {
+            plasma()
+                .clipShape(Circle())
+            Circle()
+                .fill(swPlasmaButtonInk)
+                .padding(swPlasmaRingWidth)
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 64, height: 64)
+    }
+}
+
+private struct SWPlasmaRingPillButton<Plasma: View>: View {
+    let title: String
+    @ViewBuilder let plasma: () -> Plasma
+
+    var body: some View {
+        ZStack {
+            plasma()
+                .clipShape(Capsule())
+            Text(title)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 28)
+        }
+        .frame(height: 56)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+}
 ```
 
 ### SWPlasma.metal
@@ -267,7 +484,7 @@ static float3 swPlasmaPal5(float t,
     return mix(c4, c5, smoothstep(0.75, 1.0, t));
 }
 
-// MARK: - Solar — stacked sins + 3-octave fbm, warm 5-stop palette
+// MARK: - Solar
 
 [[ stitchable ]] half4 swPlasmaSolar(float2 position,
                                      half4  color,
@@ -303,7 +520,7 @@ static float3 swPlasmaPal5(float t,
     return half4(half3(col), 1.0h);
 }
 
-// MARK: - Prism — rotating-direction sin field, RGB split on X
+// MARK: - Prism
 
 [[ stitchable ]] half4 swPlasmaPrism(float2 position,
                                      half4  color,
@@ -341,7 +558,7 @@ static float3 swPlasmaPal5(float t,
     return half4(half3(clamp(col, 0.0, 1.5)), 1.0h);
 }
 
-// MARK: - Spectrum — like Prism but vertical bias, RGB split on Y
+// MARK: - Spectrum
 
 [[ stitchable ]] half4 swPlasmaSpectrum(float2 position,
                                         half4  color,
@@ -379,7 +596,7 @@ static float3 swPlasmaPal5(float t,
     return half4(half3(clamp(col, 0.0, 1.6)), 1.0h);
 }
 
-// MARK: - Ember — radial term + gamma boost + high-power hotspots
+// MARK: - Ember
 
 [[ stitchable ]] half4 swPlasmaEmber(float2 position,
                                      half4  color,
@@ -415,7 +632,7 @@ static float3 swPlasmaPal5(float t,
     return half4(half3(col), 1.0h);
 }
 
-// MARK: - Lilac — slow phase + global breath envelope
+// MARK: - Lilac
 
 [[ stitchable ]] half4 swPlasmaLilac(float2 position,
                                      half4  color,

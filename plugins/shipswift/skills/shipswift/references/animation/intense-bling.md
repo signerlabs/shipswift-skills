@@ -52,7 +52,7 @@ Both files must be added to the Xcode target; the `.metal` file is compiled into
 //  Usage:
 //    // Default — internal animation only
 //    SWIntenseBling {
-//        Image("messi").resizable().scaledToFill()
+//        Image("photo").resizable().scaledToFill()
 //    }
 //
 //    // Tilt-driven from a DragGesture
@@ -144,9 +144,114 @@ private struct SWIntenseBlingRenderer<Content: View>: View {
     }
 }
 
-// (Optional `SWIntenseBlingControlled` + `SWIntenseBlingControlsSheet` provide
-// a gear ToolbarItem and a Form-based live-tuning sheet. Omit them in
-// production builds; the renderer above is everything you need to ship.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWIntenseBlingControlled<Content: View>: View {
+    @State private var tiltX: Float
+    @State private var tiltY: Float
+    @State private var intensity: Float
+    @State private var speed: Float
+
+    @State private var showSheet = false
+
+    private let content: Content
+
+    init(initial: SWIntenseBling<Content>, content: Content) {
+        _tiltX = State(initialValue: Float(initial.tilt.width))
+        _tiltY = State(initialValue: Float(initial.tilt.height))
+        _intensity = State(initialValue: initial.intensity)
+        _speed = State(initialValue: initial.speed)
+        self.content = content
+    }
+
+    var body: some View {
+        SWIntenseBlingRenderer(
+            initial: SWIntenseBling(
+                tilt: CGSize(width: CGFloat(tiltX), height: CGFloat(tiltY)),
+                intensity: intensity,
+                speed: speed
+            ) { content },
+            content: content
+        )
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Intense Bling Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWIntenseBlingControlsSheet(
+                tiltX: $tiltX,
+                tiltY: $tiltY,
+                intensity: $intensity,
+                speed: $speed
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWIntenseBlingControlsSheet: View {
+    @Binding var tiltX: Float
+    @Binding var tiltY: Float
+    @Binding var intensity: Float
+    @Binding var speed: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Tilt") {
+                    SWIntenseBlingSliderRow(label: "Tilt X", value: $tiltX, range: -1...1, step: 0.01)
+                    SWIntenseBlingSliderRow(label: "Tilt Y", value: $tiltY, range: -1...1, step: 0.01)
+                }
+                Section("Bling") {
+                    SWIntenseBlingSliderRow(label: "Intensity", value: $intensity, range: 0...1, step: 0.01)
+                }
+                Section("Motion") {
+                    SWIntenseBlingSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                }
+            }
+            .navigationTitle("Intense Bling")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWIntenseBlingSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWIntenseBling.metal
@@ -298,7 +403,7 @@ static half3 swBling_hsv2rgb(half3 c) {
 ```swift
 // Default — moderate intensity (0.5), internal animation only
 SWIntenseBling {
-    Image("messi").resizable().scaledToFill()
+    Image("photo").resizable().scaledToFill()
 }
 .frame(width: 250, height: 350)
 .clipShape(RoundedRectangle(cornerRadius: 16))

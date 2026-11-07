@@ -360,15 +360,17 @@ private struct SWBlindsShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         let clamped = min(max(progress, 0), 1)
+        // A non-positive slat height would never advance the loop.
+        let slat = max(slatHeight, 1)
         var path = Path()
         var y: CGFloat = 0
         while y < rect.height {
             path.addRect(CGRect(
                 x: 0, y: y,
                 width: rect.width,
-                height: slatHeight * clamped
+                height: slat * clamped
             ))
-            y += slatHeight
+            y += slat
         }
         return path
     }
@@ -443,7 +445,7 @@ struct SWFlickerTransition: Transition {
 private struct SWFlickerModifier: ViewModifier, Animatable {
     var progress: CGFloat
 
-    var animatableData: CGFloat {
+    nonisolated var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
@@ -526,7 +528,7 @@ private struct SWGlareModifier: ViewModifier, Animatable {
     var progress: CGFloat
     var angle: Angle
 
-    var animatableData: CGFloat {
+    nonisolated var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
@@ -594,18 +596,20 @@ private struct SWDissolveModifier: ViewModifier, Animatable {
     var progress: CGFloat
     var cellSize: CGFloat
 
-    var animatableData: CGFloat {
+    nonisolated var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
 
     func body(content: Content) -> some View {
         let clamped = min(max(progress, 0), 1)
+        // Guard against a zero cell size (division by zero).
+        let cell = max(cellSize, 1)
         content
             .mask {
                 Canvas { context, size in
-                    let cols = Int(ceil(size.width / cellSize))
-                    let rows = Int(ceil(size.height / cellSize))
+                    let cols = Int(ceil(size.width / cell))
+                    let rows = Int(ceil(size.height / cell))
                     for row in 0..<rows {
                         for col in 0..<cols {
                             // Deterministic pseudo-random threshold per cell.
@@ -614,10 +618,10 @@ private struct SWDissolveModifier: ViewModifier, Animatable {
                             if threshold < clamped {
                                 context.fill(
                                     Path(CGRect(
-                                        x: CGFloat(col) * cellSize,
-                                        y: CGFloat(row) * cellSize,
-                                        width: cellSize,
-                                        height: cellSize
+                                        x: CGFloat(col) * cell,
+                                        y: CGFloat(row) * cell,
+                                        width: cell,
+                                        height: cell
                                     )),
                                     with: .color(.black)
                                 )

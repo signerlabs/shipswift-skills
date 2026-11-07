@@ -345,21 +345,6 @@ extension View {
     .frame(maxWidth: .infinity)
     .swAlert()
 }
-```swift
-    /// @main
-    /// struct MyApp: App {
-    ///     var body: some Scene {
-    ///         WindowGroup {
-    ///             ContentView()
-    ///                 .swAlert()
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    func swAlert() -> some View {
-        modifier(SWAlertModifier())
-    }
-}
 ```
 
 ## Usage

@@ -127,9 +127,148 @@ private struct SWFractalCloudsRenderer: View {
     }
 }
 
-// (Optional `SWFractalCloudsControlled` + `SWFractalCloudsControlsSheet`
-// provide a gear ToolbarItem and a Form-based live-tuning sheet. Omit them
-// in production builds.)
+// MARK: - Controlled Wrapper (gear toolbar item + live sheet)
+
+private struct SWFractalCloudsControlled: View {
+    @State private var skyColor: Color
+    @State private var cloudColor: Color
+    @State private var warmTint: Color
+    @State private var warmth: Float
+    @State private var speed: Float
+    @State private var zoom: Float
+    @State private var driftX: Float
+    @State private var driftY: Float
+    @State private var warp: Float
+    @State private var coverage: Float
+
+    @State private var showSheet = false
+
+    init(initial: SWFractalClouds) {
+        _skyColor   = State(initialValue: initial.skyColor)
+        _cloudColor = State(initialValue: initial.cloudColor)
+        _warmTint   = State(initialValue: initial.warmTint)
+        _warmth     = State(initialValue: initial.warmth)
+        _speed      = State(initialValue: initial.speed)
+        _zoom       = State(initialValue: initial.zoom)
+        _driftX     = State(initialValue: initial.driftX)
+        _driftY     = State(initialValue: initial.driftY)
+        _warp       = State(initialValue: initial.warp)
+        _coverage   = State(initialValue: initial.coverage)
+    }
+
+    var body: some View {
+        SWFractalCloudsRenderer(
+            skyColor: skyColor,
+            cloudColor: cloudColor,
+            warmTint: warmTint,
+            warmth: warmth,
+            speed: speed,
+            zoom: zoom,
+            driftX: driftX,
+            driftY: driftY,
+            warp: warp,
+            coverage: coverage
+        )
+        .ignoresSafeArea()
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Fractal Clouds Controls")
+            }
+        }
+        .sheet(isPresented: $showSheet) {
+            SWFractalCloudsControlsSheet(
+                skyColor: $skyColor,
+                cloudColor: $cloudColor,
+                warmTint: $warmTint,
+                warmth: $warmth,
+                speed: $speed,
+                zoom: $zoom,
+                driftX: $driftX,
+                driftY: $driftY,
+                warp: $warp,
+                coverage: $coverage
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Controls Sheet
+
+private struct SWFractalCloudsControlsSheet: View {
+    @Binding var skyColor: Color
+    @Binding var cloudColor: Color
+    @Binding var warmTint: Color
+    @Binding var warmth: Float
+    @Binding var speed: Float
+    @Binding var zoom: Float
+    @Binding var driftX: Float
+    @Binding var driftY: Float
+    @Binding var warp: Float
+    @Binding var coverage: Float
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Colors") {
+                    ColorPicker("Sky",        selection: $skyColor,   supportsOpacity: false)
+                    ColorPicker("Cloud",      selection: $cloudColor, supportsOpacity: false)
+                    ColorPicker("Warm Tint",  selection: $warmTint,   supportsOpacity: false)
+                }
+
+                Section("Shape") {
+                    SWFractalCloudsSliderRow(label: "Zoom",     value: $zoom,     range: 0.5...10, step: 0.1)
+                    SWFractalCloudsSliderRow(label: "Coverage", value: $coverage, range: -1...1,   step: 0.05)
+                    SWFractalCloudsSliderRow(label: "Warp",     value: $warp,     range: 0...5,    step: 0.05)
+                    SWFractalCloudsSliderRow(label: "Warmth",   value: $warmth,   range: 0...2,    step: 0.05)
+                }
+
+                Section("Motion") {
+                    SWFractalCloudsSliderRow(label: "Speed",   value: $speed,  range: 0...3,        step: 0.05)
+                    SWFractalCloudsSliderRow(label: "Drift X", value: $driftX, range: -0.5...0.5,   step: 0.01)
+                    SWFractalCloudsSliderRow(label: "Drift Y", value: $driftY, range: -0.5...0.5,   step: 0.01)
+                }
+            }
+            .navigationTitle("Fractal Clouds")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct SWFractalCloudsSliderRow: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+        }
+    }
+}
 ```
 
 ### SWFractalClouds.metal

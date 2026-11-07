@@ -29,8 +29,8 @@ SWAnimation/SWMetal/
 //  SWWater.swift
 //  ShipSwift
 //
-//  A SwiftUI Metal `layerEffect`. Wraps any view in a rippling caustic
-//  distortion — a slow simplex-noise wave pushes UVs around while a
+//  Wraps any view in a rippling caustic distortion via a SwiftUI Metal
+//  `layerEffect` — a slow simplex-noise wave pushes UVs around while a
 //  6-octave rotated caustic field paints sunlight-on-pool highlights
 //  across the surface.
 //
@@ -258,7 +258,7 @@ private struct SWWaterControlled<Content: View>: View {
                 colorBack: $colorBack,
                 colorHighlight: $colorHighlight
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
     }
@@ -288,16 +288,16 @@ private struct SWWaterControlsSheet: View {
                 }
 
                 Section("Pattern") {
-                    SliderRow(label: "Size",       value: $size,       range: 0.01...7, step: 0.01)
-                    SliderRow(label: "Caustic",    value: $caustic,    range: 0...1,    step: 0.01)
-                    SliderRow(label: "Waves",      value: $waves,      range: 0...1,    step: 0.01)
-                    SliderRow(label: "Layering",   value: $layering,   range: 0...1,    step: 0.01)
-                    SliderRow(label: "Edges",      value: $edges,      range: 0...1,    step: 0.01)
-                    SliderRow(label: "Highlights", value: $highlights, range: 0...1,    step: 0.01)
+                    SWWaterSliderRow(label: "Size",       value: $size,       range: 0.01...7, step: 0.01)
+                    SWWaterSliderRow(label: "Caustic",    value: $caustic,    range: 0...1,    step: 0.01)
+                    SWWaterSliderRow(label: "Waves",      value: $waves,      range: 0...1,    step: 0.01)
+                    SWWaterSliderRow(label: "Layering",   value: $layering,   range: 0...1,    step: 0.01)
+                    SWWaterSliderRow(label: "Edges",      value: $edges,      range: 0...1,    step: 0.01)
+                    SWWaterSliderRow(label: "Highlights", value: $highlights, range: 0...1,    step: 0.01)
                 }
 
                 Section("Motion") {
-                    SliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
+                    SWWaterSliderRow(label: "Speed", value: $speed, range: 0...3, step: 0.05)
                 }
             }
             .navigationTitle("Water")
@@ -313,7 +313,7 @@ private struct SWWaterControlsSheet: View {
     }
 }
 
-private struct SliderRow: View {
+private struct SWWaterSliderRow: View {
     let label: String
     @Binding var value: Float
     let range: ClosedRange<Float>
@@ -332,30 +332,6 @@ private struct SliderRow: View {
         }
     }
 }
-
-// MARK: - Preview
-
-#Preview("Default") {
-    NavigationStack {
-        SWWater(showsControls: true) {
-            Image(.facePicture)
-                .resizable()
-                .scaledToFill()
-        }
-    }
-}
-
-#Preview("Pool blue") {
-    SWWater(
-        highlights: 0.8,
-        colorBack: .black,
-        colorHighlight: Color(red: 0.4, green: 0.85, blue: 1.0)
-    ) {
-        Image(.facePicture)
-            .resizable()
-            .scaledToFill()
-    }
-}
 ```
 
 ### SWWater.metal
@@ -365,7 +341,7 @@ private struct SliderRow: View {
 //  SWWater.metal
 //  ShipSwift
 //
-//  Stitchable SwiftUI layerEffect. Wraps a source layer in a
+//  Stitchable SwiftUI layerEffect that wraps a source layer in a
 //  rippling caustic distortion: a slow simplex-noise wave gently pushes
 //  UVs around while a 6-octave rotated caustic field pinches highlights
 //  into the surface, like sunlight on a pool bottom.
@@ -443,9 +419,9 @@ static float swW_uvFrame(float2 uv) {
     return left * right * bottom * top;
 }
 
-// Caustic noise — six rotated octaves whose phase advances with `t`.
-// The vec2 accumulator `n` carries phase forward into the next octave,
-// while `N` accumulates the visible caustic field.
+// `getCausticNoise` — six rotated octaves whose phase advances
+// with `t`. The vec2 accumulator `n` carries phase forward into the next
+// octave, while `N` accumulates the visible caustic field.
 static float swW_caustic(float2 uv, float t, float scale) {
     float2 n = float2(0.1);
     float2 N = float2(0.1);
@@ -495,7 +471,7 @@ static float swW_caustic(float2 uv, float t, float scale) {
     float wavesNoise = swW_snoise((0.3 + 0.1 * sin(t)) * 0.1 * patternUV
                                   + float2(0.0, 0.4 * t));
 
-    // Two layered caustic samples — adds detail without doubling the
+    // Two layered caustic samples to add detail without doubling the
     // inner loop count.
     float causticN = swW_caustic(patternUV + waves * float2(1.0, -1.0) * wavesNoise,
                                  2.0 * t, 1.5);

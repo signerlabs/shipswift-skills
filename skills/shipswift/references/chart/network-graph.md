@@ -8,7 +8,7 @@ tags: [chart, graph, network, 3d, canvas, interactive, SwiftUI]
 
 ## Overview
 
-An interactive 3D network graph ("knowledge graph") rendered with a single SwiftUI `Canvas` per frame — colored dots linked by prerequisite edges, floating in a slowly spinning 3D funnel. All 3D math is hand-rolled (no SceneKit): a Y-rotation + tilt matrix and one-axis perspective projection. Nodes grow in bottom-up on appear, the graph auto-spins while idle, and users can drag to orbit, pinch to zoom, and tap a dot to highlight its full prerequisite lineage (BFS) while the camera tweens to face it. Ships with optional native-sheet chrome: a filter toolbar button opening a group list with Select All / Clear All, and a selection detail sheet (medium detent, background interaction enabled so the graph stays orbitable) with tappable "builds on" / "unlocks" rows and a back stack. Respects Reduce Motion. Requires iOS 18+ / macOS 15+.
+An interactive 3D network graph ("knowledge graph") rendered with a single SwiftUI `Canvas` per frame — colored dots linked by prerequisite edges, floating in a slowly spinning 3D funnel. All 3D math is hand-rolled (no SceneKit): a Y-rotation + tilt matrix and one-axis perspective projection. Nodes grow in bottom-up on appear, the graph auto-spins while idle, and users can drag to orbit, pinch to zoom, and tap a dot to highlight its full prerequisite lineage (BFS) while the camera tweens to face it. Ships with optional native-sheet chrome: a filter toolbar button opening a group list with Select All / Clear All, and a selection detail sheet (short / medium / large detents, background interaction enabled up through medium so the graph stays orbitable) with tappable "builds on" / "unlocks" rows and a back stack. Respects Reduce Motion. Requires iOS 18+ / macOS 15+.
 
 ## Source Code
 
@@ -41,10 +41,10 @@ An interactive 3D network graph ("knowledge graph") rendered with a single Swift
 //    - A filter toolbar button (top trailing) that opens a sheet listing one
 //      row per `group` with Select All / Clear All shortcuts. The toolbar
 //      item needs an enclosing NavigationStack to be visible.
-//    - A detail sheet for the selected node (medium detent, background
-//      interaction stays enabled so the graph can still be orbited) with the
-//      total prerequisite count and tappable "builds on" / "unlocks" rows
-//      plus a back stack.
+//    - A detail sheet for the selected node (short / medium / large detents;
+//      background interaction stays enabled up through medium so the graph
+//      can still be orbited) with the total prerequisite count and tappable
+//      "builds on" / "unlocks" rows plus a back stack.
 //
 //  Requires iOS 18+ / macOS 15+ (SwiftUI `TimelineView`, `Canvas`,
 //  `MagnifyGesture`).
@@ -396,7 +396,7 @@ struct SWNetworkGraph: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.fraction(0.3), .medium, .large])
         .presentationDragIndicator(.visible)
     }
 
@@ -452,7 +452,7 @@ struct SWNetworkGraph: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.fraction(0.3), .medium, .large])
         .presentationDragIndicator(.visible)
         // Keep the graph interactive behind the sheet so users can still
         // orbit and tap other dots while reading the details.
@@ -603,7 +603,8 @@ private final class SWNetworkGraphCamera {
 // MARK: - Resolved Graph
 
 /// Index-based view of the graph: funnel positions, adjacency lists, and
-/// per-group counts, all derived once per `nodes`/`edges` change.
+/// per-group counts, derived from `nodes`/`edges` on each body evaluation
+/// (selection and filter changes, never per frame).
 private struct SWNetworkGraphResolved {
     let nodes: [SWNetworkGraphNode]
     let positions: [SIMD3<Double>]
@@ -803,7 +804,7 @@ SWNetworkGraph(
 .ignoresSafeArea()
 
 // Full curriculum dataset (1,590 topics, 3,221 edges) — add the companion
-// SWNetworkGraphData.swift file from the ShipSwift repo
+// SWNetworkGraphData.swift file from the ShipSwift repo (see Bundled Dataset)
 SWNetworkGraph(
     nodes: SWNetworkGraphData.nodes,
     edges: SWNetworkGraphData.edges
@@ -838,8 +839,8 @@ SWNetworkGraph(
 ### Headless Embed (no built-in chrome)
 
 ```swift
-// Disable the legend chips and detail card to drive your own UI
-// from the onNodeSelected callback.
+// Disable the filter toolbar button and the detail sheet to drive your
+// own UI from the onNodeSelected callback.
 SWNetworkGraph(
     nodes: myNodes,
     edges: myEdges,
@@ -859,11 +860,11 @@ SWNetworkGraph(
 
 ## Bundled Dataset
 
-The ShipSwift repo ships a companion file, `SWPackage/SWChart/SWNetworkGraphData.swift`, holding the full Marble Skill Taxonomy: 1,590 micro-topics across 8 subjects / 54 domains with 3,221 prerequisite edges — the same graph as withmarble.com/curriculum. Data comes from the open [os-taxonomy](https://github.com/withmarbleapp/os-taxonomy) repository (ODbL v1.0; content CC BY-SA 4.0 — keep the attribution header if you copy the file). Fields used: id, name, subject, domain, age range, centrality, and the dependency list. The dataset is stored as compact pipe-separated string tables parsed once on first access, because Swift array literals with thousands of elements slow type checking to a crawl.
+This skill does not embed the dataset (about 4,900 lines of data). The public ShipSwift repo ships it as a separate companion file, [`ShipSwift/SWPackage/SWChart/SWNetworkGraphData.swift`](https://github.com/signerlabs/ShipSwift/blob/main/ShipSwift/SWPackage/SWChart/SWNetworkGraphData.swift); download it next to `SWNetworkGraph.swift` only if you want the full graph. It holds the full Marble Skill Taxonomy: 1,590 micro-topics across 8 subjects / 54 domains with 3,221 prerequisite edges — the same graph as withmarble.com/curriculum. Data comes from the open [os-taxonomy](https://github.com/withmarbleapp/os-taxonomy) repository (ODbL v1.0; content CC BY-SA 4.0 — keep the attribution header if you copy the file). Fields used: id, name, subject, domain, age range, centrality, and the dependency list. The dataset is stored as compact pipe-separated string tables parsed once on first access, because Swift array literals with thousands of elements slow type checking to a crawl.
 
 ## Known Gotchas
 
-- The filter toolbar button is a `ToolbarItem`, so it only appears inside a `NavigationStack` (push the graph or wrap it yourself). Without one, set `showsLegend: false` and drive `hiddenGroups`-style filtering from your own UI via `onNodeSelected`.
+- The filter toolbar button is a `ToolbarItem`, so it only appears inside a `NavigationStack` (push the graph or wrap it yourself). Without one, set `showsLegend: false` and filter from your own UI by passing a reduced `nodes` / `edges` set (changing either clears the selection).
 - Node `id` values must be unique; edges referencing unknown ids are silently dropped.
 - The camera lives in a plain reference type mutated once per frame from the Canvas closure — this is deliberate so per-frame updates never trigger SwiftUI invalidation (`TimelineView(.animation)` already redraws every frame). Don't convert it to `@Observable`.
 - `level` gates the grow-in intro: nodes with `level` above the elapsed threshold stay hidden until the intro finishes. Under Reduce Motion the intro and auto-spin are skipped entirely.

@@ -190,7 +190,8 @@ private struct SWGlassOrbBody: View {
         // is plenty for the magnified / dispersed taps.
         let maxOffset = radius + 24
 
-        TimelineView(.animation) { context in
+        // The clock only drives the hue flow, so pause it when the flow is off.
+        TimelineView(.animation(minimumInterval: nil, paused: colorFlow == 0)) { context in
             // Cycle the gradient's hue over time so the orb's color flows. Kept
             // within 0...360 to avoid float-precision jitter on a large clock.
             let t = context.date.timeIntervalSinceReferenceDate
@@ -547,7 +548,7 @@ SWGlassOrb(showsControls: true)
 ## Notes / Gotchas
 
 - **The gradient is the orb's own background, not external content.** `SWGlassOrb` is non-generic — there is no `content:` closure and no convenience init. A `LinearGradient(colors:)` is clipped to a circle and fed to the shader; to change the look, pass `colors`, not a wrapped view.
-- **Hue flow is driven by `TimelineView(.animation)` and applied *before* the shader.** `hueRotation` rotates only the gradient fill, so the orb's color cycles while the shader's Fresnel rim and specular hot-spot stay cool-white. The `colorFlow` clock is wrapped with `truncatingRemainder(dividingBy: 360)` to avoid float-precision jitter; set `colorFlow: 0` for a static orb.
+- **Hue flow is driven by `TimelineView(.animation)` and applied *before* the shader.** `hueRotation` rotates only the gradient fill, so the orb's color cycles while the shader's Fresnel rim and specular hot-spot stay cool-white. The `colorFlow` clock is wrapped with `truncatingRemainder(dividingBy: 360)` to avoid float-precision jitter; set `colorFlow: 0` for a static orb — the timeline is then paused, so a still orb costs nothing per frame.
 - **Dragging translates the whole view, not the shader centre.** The shader `center` is fixed at the frame middle (`radius, radius`); movement is a plain `.offset` on the entire view, applied *outside* the `TimelineView` so the drag stays stable across animation frames. The committed `position` accumulates on each drag end via a `@GestureState` live `drag` plus a stored `position`.
 - **`maxSampleOffset` only needs one radius of budget.** The orb samples within its own radius, so the renderer budgets `radius + 24` in both axes. If you fork the maths to magnify harder, raise this offset or the warped content will clip at the orb's reach.
 - **The rim joins seamlessly because `zoom → 1` as `r → 1`.** The sampled delta is shrunk by `zoom`, which eases from `1/magnification` at the centre back to `1.0` at the rim, so the orb's edge lines up with the surrounding un-zoomed gradient. Do not hard-clamp `zoom` below 1 at the rim or you will get a visible seam.

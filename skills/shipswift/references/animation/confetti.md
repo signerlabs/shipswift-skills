@@ -131,7 +131,7 @@ private struct SWConfettiCanvas: View {
     @State private var startTime: Date?
 
     var body: some View {
-        TimelineView(.animation) { ctx in
+        TimelineView(.animation(paused: startTime == nil)) { ctx in
             Canvas { gc, size in
                 guard let start = startTime else { return }
                 let elapsed = ctx.date.timeIntervalSince(start)
@@ -147,6 +147,7 @@ private struct SWConfettiCanvas: View {
                     let angle = Angle.degrees(p.angle + p.angularVelocity * t)
                     let wobble = cos(p.wobbleSpeed * t + p.wobblePhase)
                     let currentScaleX = p.scaleX * wobble
+                    guard abs(currentScaleX) > 0.001 else { continue }
 
                     guard px > -50 && px < size.width + 50 else { continue }
                     guard py > -50 && py < size.height + 200 else { continue }
@@ -204,6 +205,14 @@ private struct SWConfettiCanvas: View {
             if isActive {
                 spawnBurst()
             }
+        }
+        .task(id: startTime) {
+            // Pause the frame clock once the burst has fully faded.
+            guard startTime != nil else { return }
+            try? await Task.sleep(for: .seconds(duration))
+            guard !Task.isCancelled else { return }
+            startTime = nil
+            particles = []
         }
     }
 
