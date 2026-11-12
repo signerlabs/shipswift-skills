@@ -25,11 +25,11 @@ The Agent Skill costs almost nothing at rest — skill docs are loaded only when
 | **[Animation](https://shipswift.app/skills/animations)** | 44 | Shimmer, Typewriter, Confetti, Mesh Gradient + 28 Metal shader backgrounds |
 | **[Chart](https://shipswift.app/skills/charts)** | 9 | Line, Bar, Area, Donut, Ring, Radar, Scatter, Heatmap, 3D Network Graph |
 | **[Component](https://shipswift.app/skills/components)** | 23 | Onboarding, Alert, Loading, Stepper, Search Bar, Wallet, KPI Card |
-| **[Module](https://shipswift.app/skills)** | 41 (31 Pro) | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase); Pro: full app screens, paywall templates |
+| **[Module](https://shipswift.app/skills)** | 42 (32 Pro) | Auth (Cognito / Supabase), Camera, Chat, Settings, Infra (CDK / Supabase); Pro: full app screens, paywall templates |
 
 Every skill is a self-contained doc: architecture overview + full source code + integration checklist + known pitfalls. Browse them all, with screen recordings, at [shipswift.app/skills](https://shipswift.app/skills).
 
-**86 of 117 skills are free** and bundled in the Agent Skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
+**86 of 118 skills are free** and bundled in the Agent Skill. To update to the latest catalog, just re-run `npx skills add signerlabs/shipswift-skills`.
 
 ## ShipSwift Pro
 
@@ -76,7 +76,7 @@ signerlabs/shipswift-skills/
 │   └── shipswift/
 │       ├── SKILL.md                  # The skill (hand-written)
 │       └── references/               # GENERATED — 86 free skills + index.md
-│           ├── index.md              # Full catalog (117 skills, Pro rows marked)
+│           ├── index.md              # Full catalog (118 skills, Pro rows marked)
 │           ├── animation/            # 44 skills
 │           ├── chart/                # 9 skills
 │           ├── component/            # 23 skills
